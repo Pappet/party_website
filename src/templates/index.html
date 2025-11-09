@@ -317,10 +317,14 @@
                 <p style="margin-bottom: 20px;">Gib zwei wahre Aussagen und eine Lüge über dich ein. Andere müssen
                     raten!</p>
 
-                <input type="text" id="truth1" placeholder="Erste Aussage (wahr)">
-                <input type="text" id="truth2" placeholder="Zweite Aussage (wahr)">
-                <input type="text" id="lie" placeholder="Dritte Aussage (gelogen)">
-                <button onclick="submitTruthLie()">Absenden</button>
+                <div id="truthLieInputSection">
+                    <input type="text" id="truth1" placeholder="Erste Aussage (wahr)">
+                    <input type="text" id="truth2" placeholder="Zweite Aussage (wahr)">
+                    <input type="text" id="lie" placeholder="Dritte Aussage (gelogen)">
+                    <button onclick="submitTruthLie()">Absenden</button>
+                </div>
+
+                <div id="truthLieUserEntry" style="display: none; margin-bottom: 20px;"></div>
 
                 <div id="truthLieEntries" style="margin-top: 30px;"></div>
             </div>
@@ -442,26 +446,58 @@
 
             if (!truth1 || !truth2 || !lie) return;
 
-            await fetch('/api/truthlie', {
+            const response = await fetch('/api/truthlie', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ truth1, truth2, lie })
             });
 
-            document.getElementById('truth1').value = '';
-            document.getElementById('truth2').value = '';
-            document.getElementById('lie').value = '';
-            loadTruthLies();
+            if (response.ok) {
+                document.getElementById('truth1').value = '';
+                document.getElementById('truth2').value = '';
+                document.getElementById('lie').value = '';
+                loadTruthLies();
+            } else {
+                const data = await response.json();
+                alert(data.error || 'Fehler beim Absenden');
+            }
         }
 
         async function loadTruthLies() {
             const response = await fetch('/api/truthlie');
-            const entries = await response.json();
+            const data = await response.json();
 
+            // Handle input form - show or hide based on whether user has already submitted
+            const inputSection = document.getElementById('truthLieInputSection');
+            const userEntrySection = document.getElementById('truthLieUserEntry');
+
+            if (data.user_has_entry) {
+                // User has already submitted - hide input form and show their entry
+                inputSection.style.display = 'none';
+                userEntrySection.style.display = 'block';
+                userEntrySection.innerHTML = '<h3 style="color: #667eea; margin-bottom: 15px;">Deine Aussagen</h3>';
+
+                const div = document.createElement('div');
+                div.className = 'entry';
+                div.style.background = 'linear-gradient(135deg, #667eea20 0%, #764ba220 100%)';
+
+                let statementsHtml = data.user_entry.statements.map((stmt, i) => {
+                    return `<div style="margin: 10px 0;">${i + 1}. ${stmt}</div>`;
+                }).join('');
+
+                div.innerHTML = statementsHtml;
+                userEntrySection.appendChild(div);
+            } else {
+                // User hasn't submitted yet - show input form
+                inputSection.style.display = 'block';
+                userEntrySection.style.display = 'none';
+            }
+
+            // Display other users' entries
             const container = document.getElementById('truthLieEntries');
             container.innerHTML = '<h3 style="margin-top: 20px; color: #667eea;">Einträge der Gäste</h3>';
 
-            entries.forEach(entry => {
+            data.entries.forEach(entry => {
                 const div = document.createElement('div');
                 div.className = 'entry';
 
