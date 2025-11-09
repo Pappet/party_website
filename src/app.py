@@ -31,6 +31,9 @@ class Vote(db.Model):
     truth_lie_id = db.Column(db.Integer, db.ForeignKey('truth_lie.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     guess = db.Column(db.String(200), nullable=False)
+    attempts = db.Column(db.Integer, default=1)
+    is_correct = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     truth_lie = db.relationship('TruthLie', backref='votes')
     user = db.relationship('User')
 
@@ -110,7 +113,9 @@ def get_truthlies():
         for vote in entry.votes:
             votes[vote.user.name] = {
                 'guess': vote.guess,
-                'correct': vote.guess == entry.lie
+                'correct': vote.guess == entry.lie,
+                'attempts': vote.attempts,
+                'is_correct': vote.is_correct
             }
 
         entry_data = {
@@ -163,27 +168,66 @@ def submit_truthlie():
 def vote_truthlie():
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
-    
+
     data = request.json
-    
-    # Check if already voted
+
+    # Get the entry to check the correct answer
+    entry = TruthLie.query.get(data['entry_id'])
+    if not entry:
+        return jsonify({'error': 'Entry not found'}), 404
+
+    # Check if already voted correctly
     existing = Vote.query.filter_by(
         truth_lie_id=data['entry_id'],
         user_id=session['user_id']
     ).first()
-    
+
+    if existing and existing.is_correct:
+        return jsonify({'error': 'Already guessed correctly'}), 400
+
+    # Check if this guess is correct
+    is_correct = data['guess'] == entry.lie
+
     if existing:
-        return jsonify({'error': 'Already voted'}), 400
-    
-    vote = Vote(
-        truth_lie_id=data['entry_id'],
-        user_id=session['user_id'],
-        guess=data['guess']
-    )
-    db.session.add(vote)
+        # Update existing vote with new guess and increment attempts
+        existing.guess = data['guess']
+        existing.attempts += 1
+        existing.is_correct = is_correct
+    else:
+        # Create new vote
+        existing = Vote(
+            truth_lie_id=data['entry_id'],
+            user_id=session['user_id'],
+            guess=data['guess'],
+            attempts=1,
+            is_correct=is_correct
+        )
+        db.session.add(existing)
+
     db.session.commit()
-    
-    return jsonify({'success': True})
+
+    return jsonify({'success': True, 'correct': is_correct, 'attempts': existing.attempts})
+
+@app.route('/api/truthlie/leaderboard', methods=['GET'])
+def get_truthlie_leaderboard():
+    users = User.query.all()
+    scores = []
+
+    for user in users:
+        # Get all correct votes by this user
+        correct_votes = Vote.query.filter_by(user_id=user.id, is_correct=True).all()
+
+        if correct_votes:
+            total_attempts = sum(vote.attempts for vote in correct_votes)
+            scores.append({
+                'name': user.name,
+                'total_attempts': total_attempts,
+                'solved_count': len(correct_votes)
+            })
+
+    # Sort by total attempts (ascending - fewer is better)
+    scores.sort(key=lambda x: x['total_attempts'])
+    return jsonify(scores)
 
 # Compliments endpoints
 @app.route('/api/compliments/target', methods=['GET'])
