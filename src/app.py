@@ -97,9 +97,14 @@ def get_users():
 # Truth or Lie endpoints
 @app.route('/api/truthlie', methods=['GET'])
 def get_truthlies():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+
     entries = TruthLie.query.all()
     result = []
-    
+    user_has_entry = False
+    user_entry = None
+
     for entry in entries:
         votes = {}
         for vote in entry.votes:
@@ -107,27 +112,43 @@ def get_truthlies():
                 'guess': vote.guess,
                 'correct': vote.guess == entry.lie
             }
-        
-        result.append({
+
+        entry_data = {
             'id': entry.id,
             'user': entry.user.name,
             'statements': json.loads(entry.statements),
             'lie': entry.lie,
             'votes': votes
-        })
-    
-    return jsonify(result)
+        }
+
+        # Check if this is the current user's entry
+        if entry.user_id == session['user_id']:
+            user_has_entry = True
+            user_entry = entry_data
+        else:
+            result.append(entry_data)
+
+    return jsonify({
+        'entries': result,
+        'user_has_entry': user_has_entry,
+        'user_entry': user_entry
+    })
 
 @app.route('/api/truthlie', methods=['POST'])
 def submit_truthlie():
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
-    
+
+    # Check if user already has an entry
+    existing_entry = TruthLie.query.filter_by(user_id=session['user_id']).first()
+    if existing_entry:
+        return jsonify({'error': 'You already submitted your statements'}), 400
+
     data = request.json
     statements = [data['truth1'], data['truth2'], data['lie']]
     import random
     random.shuffle(statements)
-    
+
     entry = TruthLie(
         user_id=session['user_id'],
         statements=json.dumps(statements),
@@ -135,7 +156,7 @@ def submit_truthlie():
     )
     db.session.add(entry)
     db.session.commit()
-    
+
     return jsonify({'success': True})
 
 @app.route('/api/truthlie/vote', methods=['POST'])
