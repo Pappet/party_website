@@ -9,7 +9,625 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+        }<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎉 Party App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        h1 {
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            font-size: 1.2em;
+        }
+
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+            margin-bottom: 15px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-weight: bold;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .activity-btn {
+            display: block;
+            width: 100%;
+            margin: 10px 0;
+            padding: 20px;
+            font-size: 18px;
+            text-align: left;
+            position: relative;
+        }
+
+        .activity-btn::before {
+            content: '→';
+            position: absolute;
+            right: 20px;
+            font-size: 24px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .user-greeting {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+        }
+
+        .back-btn {
+            background: #6c757d;
+            margin-bottom: 20px;
+        }
+
+        .entry {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+        }
+
+        .entry-header {
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .vote-btn {
+            padding: 8px 15px;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .bingo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .bingo-item {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 3px solid transparent;
+        }
+
+        .bingo-item:hover {
+            background: #e9ecef;
+        }
+
+        .bingo-item.completed {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #ffd700;
+        }
+
+        .story-text {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            line-height: 1.8;
+            font-size: 1.1em;
+        }
+
+        .compliment-box {
+            background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+            padding: 20px;
+            border-radius: 15px;
+            margin: 20px 0;
+            font-size: 1.2em;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(253, 203, 110, 0.3);
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #ddd;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2em;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+
+        .leaderboard-entry {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 4px solid #667eea;
+        }
+
+        .leaderboard-entry.current-user {
+            background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%);
+            border-left: 4px solid #ffd700;
+            font-weight: bold;
+        }
+
+        .leaderboard-rank {
+            font-size: 1.5em;
+            color: #667eea;
+            margin-right: 15px;
+            min-width: 30px;
+        }
+
+        .leaderboard-name {
+            flex-grow: 1;
+        }
+
+        .leaderboard-score {
+            font-size: 1.3em;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 2em;
+            }
+            
+            .card {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Login Screen -->
+        <div id="loginScreen">
+            <h1>🎉 Willkommen zur Party! 🎉</h1>
+            <p class="subtitle">Melde dich an und hab Spaß!</p>
+            <div class="card">
+                <h2>Anmeldung</h2>
+                <input type="text" id="nameInput" placeholder="Dein Vorname" maxlength="20">
+                <button onclick="login()">Los geht's! 🚀</button>
+            </div>
+        </div>
+
+        <!-- Main Menu -->
+        <div id="mainMenu" class="hidden">
+            <div class="user-greeting">
+                Hallo <span id="userName"></span>! 👋
+            </div>
+            
+            <div class="card">
+                <h2>Aktivitäten</h2>
+                <button class="activity-btn" onclick="showActivity('truthLie')">
+                    🎭 Zwei Wahrheiten, eine Lüge
+                </button>
+                <button class="activity-btn" onclick="showActivity('compliments')">
+                    💝 Komplimente-Roulette
+                </button>
+                <button class="activity-btn" onclick="showActivity('bingo')">
+                    🎯 Party-Bingo
+                </button>
+                <button class="activity-btn" onclick="showActivity('story')">
+                    📖 Gemeinsame Geschichte
+                </button>
+            </div>
+        </div>
+
+        <!-- Truth or Lie Activity -->
+        <div id="truthLie" class="hidden">
+            <button class="back-btn" onclick="showMenu()">← Zurück</button>
+            <div class="card">
+                <h2>🎭 Zwei Wahrheiten, eine Lüge</h2>
+                <p style="margin-bottom: 20px;">Gib zwei wahre Aussagen und eine Lüge über dich ein. Andere müssen raten!</p>
+                
+                <input type="text" id="truth1" placeholder="Erste Aussage (wahr)">
+                <input type="text" id="truth2" placeholder="Zweite Aussage (wahr)">
+                <input type="text" id="lie" placeholder="Dritte Aussage (gelogen)">
+                <button onclick="submitTruthLie()">Absenden</button>
+                
+                <div id="truthLieEntries" style="margin-top: 30px;"></div>
+            </div>
+        </div>
+
+        <!-- Compliments Activity -->
+        <div id="compliments" class="hidden">
+            <button class="back-btn" onclick="showMenu()">← Zurück</button>
+            <div class="card">
+                <h2>💝 Komplimente-Roulette</h2>
+                <p style="margin-bottom: 20px;">Schreibe ein nettes Kompliment für einen zufälligen Gast!</p>
+                
+                <div id="complimentTarget"></div>
+                <textarea id="complimentText" placeholder="Dein Kompliment..."></textarea>
+                <button onclick="submitCompliment()">Kompliment senden</button>
+                
+                <div id="receivedCompliments" style="margin-top: 30px;"></div>
+            </div>
+        </div>
+
+        <!-- Bingo Activity -->
+        <div id="bingo" class="hidden">
+            <button class="back-btn" onclick="showMenu()">← Zurück</button>
+            <div class="card">
+                <h2>🎯 Party-Bingo</h2>
+                <p style="margin-bottom: 20px;">Finde Gäste, auf die diese Dinge zutreffen. Klicke auf ein Feld, wenn du jemanden gefunden hast!</p>
+                <div id="bingoGrid" class="bingo-grid"></div>
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="stat-number" id="bingoScore">0</div>
+                        <div class="stat-label">Deine Punkte</div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 30px;">
+                    <h3 style="color: #667eea; margin-bottom: 15px;">🏆 Rangliste</h3>
+                    <div id="bingoLeaderboard"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Story Activity -->
+        <div id="story" class="hidden">
+            <button class="back-btn" onclick="showMenu()">← Zurück</button>
+            <div class="card">
+                <h2>📖 Gemeinsame Geschichte</h2>
+                <p style="margin-bottom: 20px;">Füge einen Satz zur Geschichte hinzu. Sei kreativ!</p>
+                
+                <div class="story-text" id="storyText"></div>
+                
+                <textarea id="storySentence" placeholder="Dein Satz..."></textarea>
+                <button onclick="addToStory()">Zur Geschichte hinzufügen</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = '';
+        let currentTargetId = null;
+
+        const bingoItems = [
+            'war schon in über 10 Ländern',
+            'spielt ein Instrument',
+            'kann jonglieren',
+            'spricht mehr als 2 Sprachen',
+            'hat ein ungewöhnliches Haustier',
+            'war schon auf einem Konzert dieses Jahr',
+            'kann gut kochen',
+            'macht gerne Sport',
+            'hat den gleichen Geburtsmonat wie du',
+            'liest gerade ein Buch',
+            'hat heute Geburtstag',
+            'trägt etwas Lila'
+        ];
+
+        async function login() {
+            const name = document.getElementById('nameInput').value.trim();
+            if (!name) return;
+
+            const response = await fetch('/api/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name})
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                currentUser = data.name;
+                document.getElementById('userName').textContent = name;
+                document.getElementById('loginScreen').classList.add('hidden');
+                document.getElementById('mainMenu').classList.remove('hidden');
+            }
+        }
+
+        function showMenu() {
+            document.getElementById('mainMenu').classList.remove('hidden');
+            document.getElementById('truthLie').classList.add('hidden');
+            document.getElementById('compliments').classList.add('hidden');
+            document.getElementById('bingo').classList.add('hidden');
+            document.getElementById('story').classList.add('hidden');
+        }
+
+        function showActivity(activity) {
+            document.getElementById('mainMenu').classList.add('hidden');
+            document.getElementById(activity).classList.remove('hidden');
+            
+            if (activity === 'truthLie') loadTruthLies();
+            if (activity === 'compliments') loadCompliments();
+            if (activity === 'bingo') loadBingo();
+            if (activity === 'story') loadStory();
+        }
+
+        // Truth or Lie Functions
+        async function submitTruthLie() {
+            const truth1 = document.getElementById('truth1').value.trim();
+            const truth2 = document.getElementById('truth2').value.trim();
+            const lie = document.getElementById('lie').value.trim();
+            
+            if (!truth1 || !truth2 || !lie) return;
+
+            await fetch('/api/truthlie', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({truth1, truth2, lie})
+            });
+
+            document.getElementById('truth1').value = '';
+            document.getElementById('truth2').value = '';
+            document.getElementById('lie').value = '';
+            loadTruthLies();
+        }
+
+        async function loadTruthLies() {
+            const response = await fetch('/api/truthlie');
+            const entries = await response.json();
+            
+            const container = document.getElementById('truthLieEntries');
+            container.innerHTML = '<h3 style="margin-top: 20px; color: #667eea;">Einträge der Gäste</h3>';
+            
+            entries.forEach(entry => {
+                const div = document.createElement('div');
+                div.className = 'entry';
+                
+                let statementsHtml = entry.statements.map((stmt, i) => {
+                    let voteInfo = '';
+                    if (entry.votes[currentUser]) {
+                        if (entry.votes[currentUser].guess === stmt) {
+                            voteInfo = entry.votes[currentUser].correct ? ' ✅ Richtig!' : ' ❌ Falsch!';
+                        }
+                    } else {
+                        voteInfo = ` <button class="vote-btn" onclick="voteLie(${entry.id}, '${stmt.replace(/'/g, "\\'")}')">Das ist die Lüge!</button>`;
+                    }
+                    return `<div style="margin: 10px 0;">${i + 1}. ${stmt}${voteInfo}</div>`;
+                }).join('');
+                
+                div.innerHTML = `
+                    <div class="entry-header">${entry.user}</div>
+                    ${statementsHtml}
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        async function voteLie(entryId, guess) {
+            await fetch('/api/truthlie/vote', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({entry_id: entryId, guess})
+            });
+            loadTruthLies();
+        }
+
+        // Compliments Functions
+        async function loadCompliments() {
+            const targetResponse = await fetch('/api/compliments/target');
+            const targetData = await targetResponse.json();
+            
+            const targetDiv = document.getElementById('complimentTarget');
+            if (targetData.target) {
+                currentTargetId = targetData.target_id;
+                targetDiv.innerHTML = `<div class="compliment-box">Schreibe ein Kompliment für: <strong>${targetData.target}</strong></div>`;
+            } else {
+                targetDiv.innerHTML = '<p>Warte, bis mehr Gäste da sind!</p>';
+            }
+            
+            const receivedResponse = await fetch('/api/compliments/received');
+            const received = await receivedResponse.json();
+            
+            const receivedDiv = document.getElementById('receivedCompliments');
+            if (received.length > 0) {
+                receivedDiv.innerHTML = '<h3 style="color: #667eea;">Deine Komplimente ❤️</h3>';
+                received.forEach(c => {
+                    const div = document.createElement('div');
+                    div.className = 'compliment-box';
+                    div.textContent = c.text;
+                    receivedDiv.appendChild(div);
+                });
+            } else {
+                receivedDiv.innerHTML = '';
+            }
+        }
+
+        async function submitCompliment() {
+            const text = document.getElementById('complimentText').value.trim();
+            if (!text || !currentTargetId) return;
+
+            await fetch('/api/compliments', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({to_user_id: currentTargetId, text})
+            });
+
+            document.getElementById('complimentText').value = '';
+            alert('Kompliment gesendet! 💝');
+            loadCompliments();
+        }
+
+        // Bingo Functions
+        async function loadBingo() {
+            const response = await fetch('/api/bingo');
+            const data = await response.json();
+            
+            const grid = document.getElementById('bingoGrid');
+            grid.innerHTML = '';
+            
+            bingoItems.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'bingo-item';
+                if (data.completed.includes(index)) {
+                    div.classList.add('completed');
+                    div.innerHTML = `✓ ${item}`;
+                } else {
+                    div.innerHTML = item;
+                }
+                div.onclick = () => toggleBingo(index);
+                grid.appendChild(div);
+            });
+            
+            document.getElementById('bingoScore').textContent = data.completed.length;
+            updateLeaderboard();
+        }
+
+        async function updateLeaderboard() {
+            const response = await fetch('/api/bingo/leaderboard');
+            const scores = await response.json();
+            
+            const leaderboard = document.getElementById('bingoLeaderboard');
+            leaderboard.innerHTML = '';
+            
+            scores.forEach((entry, index) => {
+                const div = document.createElement('div');
+                div.className = 'leaderboard-entry';
+                if (entry.name === currentUser) {
+                    div.classList.add('current-user');
+                }
+                
+                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+                
+                div.innerHTML = `
+                    <span class="leaderboard-rank">${medal}</span>
+                    <span class="leaderboard-name">${entry.name}</span>
+                    <span class="leaderboard-score">${entry.score}</span>
+                `;
+                leaderboard.appendChild(div);
+            });
+        }
+
+        async function toggleBingo(index) {
+            await fetch('/api/bingo/toggle', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({item_index: index})
+            });
+            loadBingo();
+        }
+
+        // Story Functions
+        async function loadStory() {
+            const response = await fetch('/api/story');
+            const sentences = await response.json();
+            
+            const storyDiv = document.getElementById('storyText');
+            storyDiv.innerHTML = sentences.join(' ');
+        }
+
+        async function addToStory() {
+            const sentence = document.getElementById('storySentence').value.trim();
+            if (!sentence) return;
+
+            await fetch('/api/story', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({sentence})
+            });
+
+            document.getElementById('storySentence').value = '';
+            loadStory();
+        }
+    </script>
+</body>
+</html>
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
