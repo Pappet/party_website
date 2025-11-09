@@ -1,0 +1,47 @@
+# Python Virtual Environments
+venv/
+.venv/
+env/
+virtualenv/
+lib/
+lib64/
+include/
+share/
+
+# Python Cache-Dateien
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Python Build- und Verteilungsdateien
+build/
+dist/
+*.egg-info/
+*.egg
+*.whl
+
+# Flask-spezifisch
+# Die Flask-App erstellt oft einen 'instance'-Ordner für Konfigurationen
+# oder, wie in Ihrem app.py, die SQLite-Datenbank ('party.db').
+instance/
+
+# Explizites Ignorieren von SQLite-Datenbanken
+*.db
+*.sqlite3
+
+# Log-Dateien
+*.log
+
+# Abhängigkeitslisten (falls sie lokal generiert werden,
+# requirements.txt ist ja aber eingecheckt, was gut ist)
+# *.txt
+
+# Betriebssystem-spezifische Dateien
+.DS_Store
+Thumbs.db
+
+# IDE-Konfigurationsordner
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
