@@ -409,6 +409,13 @@
         let currentUser = '';
         let currentTargetId = null;
 
+        // Auto-refresh interval variables
+        let onlineUsersInterval;
+        let truthLieInterval;
+        let complimentsInterval;
+        let bingoInterval;
+        let storyInterval;
+
         const bingoItems = [
             'war schon in über 10 Ländern',
             'spielt ein Instrument',
@@ -450,6 +457,10 @@
             document.getElementById('compliments').classList.add('hidden');
             document.getElementById('bingo').classList.add('hidden');
             document.getElementById('story').classList.add('hidden');
+
+            // Stop all activity auto-refresh intervals
+            stopAllActivityRefresh();
+
             loadOnlineUsers(); // Refresh online users when returning to menu
         }
 
@@ -457,10 +468,26 @@
             document.getElementById('mainMenu').classList.add('hidden');
             document.getElementById(activity).classList.remove('hidden');
 
-            if (activity === 'truthLie') loadTruthLies();
-            if (activity === 'compliments') loadCompliments();
-            if (activity === 'bingo') loadBingo();
-            if (activity === 'story') loadStory();
+            // Stop all other activity intervals first
+            stopAllActivityRefresh();
+
+            // Load and start auto-refresh for the selected activity
+            if (activity === 'truthLie') {
+                loadTruthLies();
+                startTruthLieRefresh();
+            }
+            if (activity === 'compliments') {
+                loadCompliments();
+                startComplimentsRefresh();
+            }
+            if (activity === 'bingo') {
+                loadBingo();
+                startBingoRefresh();
+            }
+            if (activity === 'story') {
+                loadStory();
+                startStoryRefresh();
+            }
         }
 
         // Truth or Lie Functions
@@ -760,13 +787,61 @@
         }
 
         // Auto-refresh online users every 10 seconds
-        let onlineUsersInterval;
         function startOnlineUsersRefresh() {
             loadOnlineUsers(); // Load immediately
             if (onlineUsersInterval) {
                 clearInterval(onlineUsersInterval);
             }
             onlineUsersInterval = setInterval(loadOnlineUsers, 10000);
+        }
+
+        // Auto-refresh functions for activities
+        function startTruthLieRefresh() {
+            if (truthLieInterval) {
+                clearInterval(truthLieInterval);
+            }
+            truthLieInterval = setInterval(loadTruthLies, 5000); // Refresh every 5 seconds
+        }
+
+        function startComplimentsRefresh() {
+            if (complimentsInterval) {
+                clearInterval(complimentsInterval);
+            }
+            complimentsInterval = setInterval(loadCompliments, 5000); // Refresh every 5 seconds
+        }
+
+        function startBingoRefresh() {
+            if (bingoInterval) {
+                clearInterval(bingoInterval);
+            }
+            bingoInterval = setInterval(loadBingo, 5000); // Refresh every 5 seconds
+        }
+
+        function startStoryRefresh() {
+            if (storyInterval) {
+                clearInterval(storyInterval);
+            }
+            storyInterval = setInterval(loadStory, 5000); // Refresh every 5 seconds
+        }
+
+        // Stop all activity refresh intervals
+        function stopAllActivityRefresh() {
+            if (truthLieInterval) {
+                clearInterval(truthLieInterval);
+                truthLieInterval = null;
+            }
+            if (complimentsInterval) {
+                clearInterval(complimentsInterval);
+                complimentsInterval = null;
+            }
+            if (bingoInterval) {
+                clearInterval(bingoInterval);
+                bingoInterval = null;
+            }
+            if (storyInterval) {
+                clearInterval(storyInterval);
+                storyInterval = null;
+            }
         }
     </script>
 </body>
