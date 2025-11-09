@@ -17,6 +17,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_seen = db.Column(db.DateTime, default=datetime.utcnow)
 
 class TruthLie(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -68,6 +69,15 @@ with app.app_context():
         db.session.add(initial)
         db.session.commit()
 
+# Middleware to update last_seen timestamp
+@app.before_request
+def update_last_seen():
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
+        if user:
+            user.last_seen = datetime.utcnow()
+            db.session.commit()
+
 # Routes
 @app.route('/')
 def index():
@@ -77,25 +87,37 @@ def index():
 def login():
     data = request.json
     name = data.get('name', '').strip()
-    
+
     if not name:
         return jsonify({'error': 'Name required'}), 400
-    
+
     user = User.query.filter_by(name=name).first()
     if not user:
         user = User(name=name)
         db.session.add(user)
         db.session.commit()
-    
+    else:
+        # Update last_seen for existing users
+        user.last_seen = datetime.utcnow()
+        db.session.commit()
+
     session['user_id'] = user.id
     session['user_name'] = user.name
-    
+
     return jsonify({'success': True, 'name': user.name})
 
 @app.route('/api/users', methods=['GET'])
 def get_users():
     users = User.query.all()
     return jsonify([{'id': u.id, 'name': u.name} for u in users])
+
+@app.route('/api/users/online', methods=['GET'])
+def get_online_users():
+    from datetime import timedelta
+    # Consider users online if they were active in the last 5 minutes
+    threshold = datetime.utcnow() - timedelta(minutes=5)
+    online_users = User.query.filter(User.last_seen >= threshold).all()
+    return jsonify([{'id': u.id, 'name': u.name} for u in online_users])
 
 # Truth or Lie endpoints
 @app.route('/api/truthlie', methods=['GET'])

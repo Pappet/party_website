@@ -133,6 +133,17 @@
             font-size: 1.3em;
         }
 
+        .online-user-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            margin: 5px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
         .back-btn {
             background: #6c757d;
             margin-bottom: 20px;
@@ -307,6 +318,13 @@
                     📖 Gemeinsame Geschichte
                 </button>
             </div>
+
+            <div class="card">
+                <h2>👥 Angemeldete Benutzer</h2>
+                <div id="onlineUsers" style="margin-top: 15px;">
+                    <p style="color: #999;">Lädt...</p>
+                </div>
+            </div>
         </div>
 
         <!-- Truth or Lie Activity -->
@@ -422,6 +440,7 @@
                 document.getElementById('userName').textContent = name;
                 document.getElementById('loginScreen').classList.add('hidden');
                 document.getElementById('mainMenu').classList.remove('hidden');
+                startOnlineUsersRefresh(); // Start loading online users
             }
         }
 
@@ -431,6 +450,7 @@
             document.getElementById('compliments').classList.add('hidden');
             document.getElementById('bingo').classList.add('hidden');
             document.getElementById('story').classList.add('hidden');
+            loadOnlineUsers(); // Refresh online users when returning to menu
         }
 
         function showActivity(activity) {
@@ -716,6 +736,37 @@
 
             document.getElementById('storySentence').value = '';
             loadStory();
+        }
+
+        // Online Users Functions
+        async function loadOnlineUsers() {
+            try {
+                const response = await fetch('/api/users/online');
+                const users = await response.json();
+
+                const onlineUsersDiv = document.getElementById('onlineUsers');
+
+                if (users.length === 0) {
+                    onlineUsersDiv.innerHTML = '<p style="color: #999;">Momentan keine Benutzer online</p>';
+                } else {
+                    const userList = users.map(user =>
+                        `<span class="online-user-badge">${user.name}</span>`
+                    ).join('');
+                    onlineUsersDiv.innerHTML = userList;
+                }
+            } catch (error) {
+                console.error('Error loading online users:', error);
+            }
+        }
+
+        // Auto-refresh online users every 10 seconds
+        let onlineUsersInterval;
+        function startOnlineUsersRefresh() {
+            loadOnlineUsers(); // Load immediately
+            if (onlineUsersInterval) {
+                clearInterval(onlineUsersInterval);
+            }
+            onlineUsersInterval = setInterval(loadOnlineUsers, 10000);
         }
     </script>
 </body>
