@@ -327,6 +327,11 @@
                 <div id="truthLieUserEntry" style="display: none; margin-bottom: 20px;"></div>
 
                 <div id="truthLieEntries" style="margin-top: 30px;"></div>
+
+                <div style="margin-top: 30px;">
+                    <h3 style="color: #667eea; margin-bottom: 15px;">🏆 Rangliste</h3>
+                    <div id="truthLieLeaderboard"></div>
+                </div>
             </div>
         </div>
 
@@ -504,8 +509,19 @@
                 let statementsHtml = entry.statements.map((stmt, i) => {
                     let voteInfo = '';
                     if (entry.votes[currentUser]) {
-                        if (entry.votes[currentUser].guess === stmt) {
-                            voteInfo = entry.votes[currentUser].correct ? ' ✅ Richtig!' : ' ❌ Falsch!';
+                        const userVote = entry.votes[currentUser];
+                        if (userVote.is_correct) {
+                            // User guessed correctly
+                            if (userVote.guess === stmt) {
+                                voteInfo = ` ✅ Richtig! (${userVote.attempts} ${userVote.attempts === 1 ? 'Versuch' : 'Versuche'})`;
+                            }
+                        } else {
+                            // User hasn't guessed correctly yet
+                            if (userVote.guess === stmt) {
+                                voteInfo = ` ❌ Falsch! (${userVote.attempts} ${userVote.attempts === 1 ? 'Versuch' : 'Versuche'})`;
+                            } else {
+                                voteInfo = ` <button class="vote-btn" onclick="voteLie(${entry.id}, '${stmt.replace(/'/g, "\\'")}')">Das ist die Lüge!</button>`;
+                            }
                         }
                     } else {
                         voteInfo = ` <button class="vote-btn" onclick="voteLie(${entry.id}, '${stmt.replace(/'/g, "\\'")}')">Das ist die Lüge!</button>`;
@@ -519,15 +535,60 @@
                 `;
                 container.appendChild(div);
             });
+
+            // Load leaderboard
+            loadTruthLieLeaderboard();
         }
 
         async function voteLie(entryId, guess) {
-            await fetch('/api/truthlie/vote', {
+            const response = await fetch('/api/truthlie/vote', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ entry_id: entryId, guess })
             });
-            loadTruthLies();
+
+            const data = await response.json();
+
+            if (response.ok) {
+                if (data.correct) {
+                    alert(`🎉 Richtig! Du hast es in ${data.attempts} ${data.attempts === 1 ? 'Versuch' : 'Versuchen'} geschafft!`);
+                } else {
+                    alert(`❌ Leider falsch! Versuch: ${data.attempts}. Versuche es nochmal!`);
+                }
+                loadTruthLies();
+            } else {
+                alert(data.error || 'Fehler beim Abstimmen');
+            }
+        }
+
+        async function loadTruthLieLeaderboard() {
+            const response = await fetch('/api/truthlie/leaderboard');
+            const scores = await response.json();
+
+            const leaderboard = document.getElementById('truthLieLeaderboard');
+            leaderboard.innerHTML = '';
+
+            if (scores.length === 0) {
+                leaderboard.innerHTML = '<p style="text-align: center; color: #6c757d;">Noch keine Einträge gelöst.</p>';
+                return;
+            }
+
+            scores.forEach((entry, index) => {
+                const div = document.createElement('div');
+                div.className = 'leaderboard-entry';
+                if (entry.name === currentUser) {
+                    div.classList.add('current-user');
+                }
+
+                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+
+                div.innerHTML = `
+                    <span class="leaderboard-rank">${medal}</span>
+                    <span class="leaderboard-name">${entry.name}</span>
+                    <span class="leaderboard-score">${entry.total_attempts} ${entry.total_attempts === 1 ? 'Versuch' : 'Versuche'} (${entry.solved_count} gelöst)</span>
+                `;
+                leaderboard.appendChild(div);
+            });
         }
 
         // Compliments Functions
