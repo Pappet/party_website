@@ -511,6 +511,15 @@
         }
 
         // Truth or Lie Functions
+        // Helper function to create vote button with DOM-based event listener (XSS-safe)
+        function createVoteButton(entryId, statement) {
+            const button = document.createElement('button');
+            button.className = 'vote-btn';
+            button.textContent = 'Das ist die Lüge!';
+            button.addEventListener('click', () => voteLie(entryId, statement));
+            return button;
+        }
+
         async function submitTruthLie() {
             const truth1 = document.getElementById('truth1').value.trim();
             const truth2 = document.getElementById('truth2').value.trim();
@@ -547,17 +556,25 @@
                 // User has already submitted - hide input form and show their entry
                 inputSection.style.display = 'none';
                 userEntrySection.style.display = 'block';
-                userEntrySection.innerHTML = '<h3 style="color: #667eea; margin-bottom: 15px;">Deine Aussagen</h3>';
+                userEntrySection.innerHTML = '';
+
+                const heading = document.createElement('h3');
+                heading.style.color = '#667eea';
+                heading.style.marginBottom = '15px';
+                heading.textContent = 'Deine Aussagen';
+                userEntrySection.appendChild(heading);
 
                 const div = document.createElement('div');
                 div.className = 'entry';
                 div.style.background = 'linear-gradient(135deg, #667eea20 0%, #764ba220 100%)';
 
-                let statementsHtml = data.user_entry.statements.map((stmt, i) => {
-                    return `<div style="margin: 10px 0;">${i + 1}. ${stmt}</div>`;
-                }).join('');
+                data.user_entry.statements.forEach((stmt, i) => {
+                    const stmtDiv = document.createElement('div');
+                    stmtDiv.style.margin = '10px 0';
+                    stmtDiv.textContent = `${i + 1}. ${stmt}`;
+                    div.appendChild(stmtDiv);
+                });
 
-                div.innerHTML = statementsHtml;
                 userEntrySection.appendChild(div);
             } else {
                 // User hasn't submitted yet - show input form
@@ -567,40 +584,61 @@
 
             // Display other users' entries
             const container = document.getElementById('truthLieEntries');
-            container.innerHTML = '<h3 style="margin-top: 20px; color: #667eea;">Einträge der Gäste</h3>';
+            container.innerHTML = '';
+
+            const heading = document.createElement('h3');
+            heading.style.marginTop = '20px';
+            heading.style.color = '#667eea';
+            heading.textContent = 'Einträge der Gäste';
+            container.appendChild(heading);
 
             data.entries.forEach(entry => {
-                const div = document.createElement('div');
-                div.className = 'entry';
+                const entryDiv = document.createElement('div');
+                entryDiv.className = 'entry';
 
-                let statementsHtml = entry.statements.map((stmt, i) => {
-                    let voteInfo = '';
+                // Create and append entry header
+                const headerDiv = document.createElement('div');
+                headerDiv.className = 'entry-header';
+                headerDiv.textContent = entry.user;
+                entryDiv.appendChild(headerDiv);
+
+                // Create statements with vote buttons
+                entry.statements.forEach((stmt, i) => {
+                    const stmtDiv = document.createElement('div');
+                    stmtDiv.style.margin = '10px 0';
+
+                    // Add statement number and text
+                    const stmtText = document.createTextNode(`${i + 1}. ${stmt}`);
+                    stmtDiv.appendChild(stmtText);
+
+                    // Add vote info or button
                     if (entry.votes[currentUser]) {
                         const userVote = entry.votes[currentUser];
                         if (userVote.is_correct) {
                             // User guessed correctly
                             if (userVote.guess === stmt) {
-                                voteInfo = ` ✅ Richtig! (${userVote.attempts} ${userVote.attempts === 1 ? 'Versuch' : 'Versuche'})`;
+                                const correctText = document.createTextNode(` ✅ Richtig! (${userVote.attempts} ${userVote.attempts === 1 ? 'Versuch' : 'Versuche'})`);
+                                stmtDiv.appendChild(correctText);
                             }
                         } else {
                             // User hasn't guessed correctly yet
                             if (userVote.guess === stmt) {
-                                voteInfo = ` ❌ Falsch! (${userVote.attempts} ${userVote.attempts === 1 ? 'Versuch' : 'Versuche'})`;
+                                const wrongText = document.createTextNode(` ❌ Falsch! (${userVote.attempts} ${userVote.attempts === 1 ? 'Versuch' : 'Versuche'})`);
+                                stmtDiv.appendChild(wrongText);
                             } else {
-                                voteInfo = ` <button class="vote-btn" onclick="voteLie(${entry.id}, '${stmt.replace(/'/g, "\\'")}')">Das ist die Lüge!</button>`;
+                                stmtDiv.appendChild(document.createTextNode(' '));
+                                stmtDiv.appendChild(createVoteButton(entry.id, stmt));
                             }
                         }
                     } else {
-                        voteInfo = ` <button class="vote-btn" onclick="voteLie(${entry.id}, '${stmt.replace(/'/g, "\\'")}')">Das ist die Lüge!</button>`;
+                        stmtDiv.appendChild(document.createTextNode(' '));
+                        stmtDiv.appendChild(createVoteButton(entry.id, stmt));
                     }
-                    return `<div style="margin: 10px 0;">${i + 1}. ${stmt}${voteInfo}</div>`;
-                }).join('');
 
-                div.innerHTML = `
-                    <div class="entry-header">${entry.user}</div>
-                    ${statementsHtml}
-                `;
-                container.appendChild(div);
+                    entryDiv.appendChild(stmtDiv);
+                });
+
+                container.appendChild(entryDiv);
             });
 
             // Load personal stats
