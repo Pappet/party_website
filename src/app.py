@@ -381,6 +381,12 @@ def get_global_leaderboard():
         Story.user_id != 0
     ).group_by(Story.user_id).subquery()
 
+    # Subquery for TruthLie creation points (+5 per created entry)
+    truthlie_creation_points = db.session.query(
+        TruthLie.user_id,
+        (func.count(TruthLie.id) * 5).label('points')
+    ).group_by(TruthLie.user_id).subquery()
+
     # Join all subqueries with User table and calculate total score
     results = db.session.query(
         User.name,
@@ -388,7 +394,8 @@ def get_global_leaderboard():
             func.coalesce(vote_points.c.points, 0) +
             func.coalesce(bingo_points.c.points, 0) +
             func.coalesce(compliment_points.c.points, 0) +
-            func.coalesce(story_points.c.points, 0)
+            func.coalesce(story_points.c.points, 0) +
+            func.coalesce(truthlie_creation_points.c.points, 0)
         ).label('total_score')
     ).outerjoin(
         vote_points, User.id == vote_points.c.user_id
@@ -398,6 +405,8 @@ def get_global_leaderboard():
         compliment_points, User.id == compliment_points.c.user_id
     ).outerjoin(
         story_points, User.id == story_points.c.user_id
+    ).outerjoin(
+        truthlie_creation_points, User.id == truthlie_creation_points.c.user_id
     ).order_by(
         db.desc('total_score')
     ).all()
