@@ -487,17 +487,14 @@
 
                 const data = await response.json();
 
-                if (!response.ok) {
+                if (!response.ok || data.status === 'error') {
                     throw new Error(data.error || `HTTP ${response.status}`);
                 }
 
-                // Return data as-is to maintain compatibility with existing code
-                return data;
+                return data.data;  // Nur data extrahieren
             } catch (error) {
                 console.error('API Error:', error);
-                if (error.message) {
-                    alert(`❌ Fehler: ${error.message}`);
-                }
+                alert(`❌ Fehler: ${error.message}`);
                 throw error;
             }
         }
@@ -515,14 +512,12 @@
                     body: JSON.stringify({ name })
                 });
 
-                if (data.success) {
-                    currentUser = data.name;
-                    document.getElementById('userName').textContent = name;
-                    document.getElementById('loginScreen').classList.add('hidden');
-                    document.getElementById('mainMenu').classList.remove('hidden');
-                    startOnlineUsersRefresh(); // Start loading online users
-                    startGlobalLeaderboardRefresh(); // Start loading global leaderboard
-                }
+                currentUser = data.name;
+                document.getElementById('userName').textContent = name;
+                document.getElementById('loginScreen').classList.add('hidden');
+                document.getElementById('mainMenu').classList.remove('hidden');
+                startOnlineUsersRefresh(); // Start loading online users
+                startGlobalLeaderboardRefresh(); // Start loading global leaderboard
             } catch (error) {
                 // Error bereits angezeigt von apiCall()
             }
@@ -601,8 +596,7 @@
         }
 
         async function loadTruthLies() {
-            const response = await fetch('/api/truthlie');
-            const data = await response.json();
+            const data = await apiCall('/api/truthlie');
 
             // Handle input form - show or hide based on whether user has already submitted
             const inputSection = document.getElementById('truthLieInputSection');
@@ -703,15 +697,15 @@
 
         async function voteLie(entryId, guess) {
             try {
-                const data = await apiCall('/api/truthlie/vote', {
+                const result = await apiCall('/api/truthlie/vote', {
                     method: 'POST',
                     body: JSON.stringify({ entry_id: entryId, guess })
                 });
 
-                if (data.correct) {
-                    alert(`🎉 Richtig! Du hast es in ${data.attempts} ${data.attempts === 1 ? 'Versuch' : 'Versuchen'} geschafft!`);
+                if (result.correct) {
+                    alert(`🎉 Richtig! Du hast es in ${result.attempts} ${result.attempts === 1 ? 'Versuch' : 'Versuchen'} geschafft!`);
                 } else {
-                    alert(`❌ Leider falsch! Versuch: ${data.attempts}. Versuche es nochmal!`);
+                    alert(`❌ Leider falsch! Versuch: ${result.attempts}. Versuche es nochmal!`);
                 }
                 loadTruthLies();
             } catch (error) {
@@ -720,8 +714,7 @@
         }
 
         async function loadTruthLiePersonalStats() {
-            const response = await fetch('/api/truthlie/leaderboard');
-            const scores = await response.json();
+            const scores = await apiCall('/api/truthlie/leaderboard');
 
             const statsDiv = document.getElementById('truthLiePersonalStats');
             statsDiv.innerHTML = '';
@@ -751,8 +744,7 @@
 
         // Compliments Functions
         async function loadComplimentTarget() {
-            const targetResponse = await fetch('/api/compliments/target');
-            const targetData = await targetResponse.json();
+            const targetData = await apiCall('/api/compliments/target');
 
             const targetDiv = document.getElementById('complimentTarget');
             if (targetData.target) {
@@ -764,8 +756,7 @@
         }
 
         async function loadReceivedCompliments() {
-            const receivedResponse = await fetch('/api/compliments/received');
-            const received = await receivedResponse.json();
+            const received = await apiCall('/api/compliments/received');
 
             const receivedDiv = document.getElementById('receivedCompliments');
             if (received.length > 0) {
@@ -782,8 +773,7 @@
         }
 
         async function loadComplimentStats() {
-            const response = await fetch('/api/compliments/stats');
-            const stats = await response.json();
+            const stats = await apiCall('/api/compliments/stats');
 
             const statsDiv = document.getElementById('complimentPersonalStats');
             statsDiv.innerHTML = `
@@ -826,8 +816,7 @@
 
         // Bingo Functions
         async function loadBingo() {
-            const response = await fetch('/api/bingo');
-            const data = await response.json();
+            const data = await apiCall('/api/bingo');
 
             const grid = document.getElementById('bingoGrid');
             grid.innerHTML = '';
@@ -862,8 +851,7 @@
 
         // Story Functions
         async function loadStory() {
-            const response = await fetch('/api/story');
-            const sentences = await response.json();
+            const sentences = await apiCall('/api/story');
 
             const storyDiv = document.getElementById('storyText');
             storyDiv.innerHTML = sentences.join(' ');
@@ -872,8 +860,7 @@
         }
 
         async function loadStoryStats() {
-            const response = await fetch('/api/story/stats');
-            const stats = await response.json();
+            const stats = await apiCall('/api/story/stats');
 
             const statsDiv = document.getElementById('storyPersonalStats');
             statsDiv.innerHTML = `
@@ -910,8 +897,7 @@
         // Online Users Functions
         async function loadOnlineUsers() {
             try {
-                const response = await fetch('/api/users/online');
-                const users = await response.json();
+                const users = await apiCall('/api/users/online');
 
                 const onlineUsersDiv = document.getElementById('onlineUsers');
 
@@ -931,8 +917,7 @@
         // Global Leaderboard Functions
         async function loadGlobalLeaderboard() {
             try {
-                const response = await fetch('/api/leaderboard/global');
-                const scores = await response.json();
+                const scores = await apiCall('/api/leaderboard/global');
 
                 const leaderboard = document.getElementById('globalLeaderboard');
                 leaderboard.innerHTML = '';
