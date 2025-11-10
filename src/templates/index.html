@@ -372,6 +372,11 @@
                 <textarea id="complimentText" placeholder="Dein Kompliment..."></textarea>
                 <button onclick="submitCompliment()">Kompliment senden</button>
 
+                <div style="margin-top: 30px;">
+                    <h3 style="color: #667eea; margin-bottom: 15px;">📊 Deine Statistik</h3>
+                    <div id="complimentPersonalStats"></div>
+                </div>
+
                 <div id="receivedCompliments" style="margin-top: 30px;"></div>
             </div>
         </div>
@@ -408,6 +413,11 @@
 
                 <textarea id="storySentence" placeholder="Dein Satz..."></textarea>
                 <button onclick="addToStory()">Zur Geschichte hinzufügen</button>
+
+                <div style="margin-top: 30px;">
+                    <h3 style="color: #667eea; margin-bottom: 15px;">📊 Deine Statistik</h3>
+                    <div id="storyPersonalStats"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -680,9 +690,29 @@
             }
         }
 
+        async function loadComplimentStats() {
+            const response = await fetch('/api/compliments/stats');
+            const stats = await response.json();
+
+            const statsDiv = document.getElementById('complimentPersonalStats');
+            statsDiv.innerHTML = `
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="stat-number">${stats.sent}</div>
+                        <div class="stat-label">Verschickt</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">${stats.received}</div>
+                        <div class="stat-label">Erhalten</div>
+                    </div>
+                </div>
+            `;
+        }
+
         async function loadCompliments() {
             await loadComplimentTarget();
             await loadReceivedCompliments();
+            await loadComplimentStats();
         }
 
         async function submitCompliment() {
@@ -740,6 +770,27 @@
 
             const storyDiv = document.getElementById('storyText');
             storyDiv.innerHTML = sentences.join(' ');
+
+            await loadStoryStats();
+        }
+
+        async function loadStoryStats() {
+            const response = await fetch('/api/story/stats');
+            const stats = await response.json();
+
+            const statsDiv = document.getElementById('storyPersonalStats');
+            statsDiv.innerHTML = `
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="stat-number">${stats.contributed}</div>
+                        <div class="stat-label">Deine Sätze</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">${stats.total}</div>
+                        <div class="stat-label">Gesamt</div>
+                    </div>
+                </div>
+            `;
         }
 
         async function addToStory() {

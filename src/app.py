@@ -277,7 +277,7 @@ def get_received_compliments():
 def submit_compliment():
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
-    
+
     data = request.json
     compliment = Compliment(
         from_user_id=session['user_id'],
@@ -286,8 +286,21 @@ def submit_compliment():
     )
     db.session.add(compliment)
     db.session.commit()
-    
+
     return jsonify({'success': True})
+
+@app.route('/api/compliments/stats', methods=['GET'])
+def get_compliment_stats():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+
+    sent_count = Compliment.query.filter_by(from_user_id=session['user_id']).count()
+    received_count = Compliment.query.filter_by(to_user_id=session['user_id']).count()
+
+    return jsonify({
+        'sent': sent_count,
+        'received': received_count
+    })
 
 # Bingo endpoints
 @app.route('/api/bingo', methods=['GET'])
@@ -404,7 +417,7 @@ def get_story():
 def add_to_story():
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
-    
+
     data = request.json
     story = Story(
         user_id=session['user_id'],
@@ -412,8 +425,21 @@ def add_to_story():
     )
     db.session.add(story)
     db.session.commit()
-    
+
     return jsonify({'success': True})
+
+@app.route('/api/story/stats', methods=['GET'])
+def get_story_stats():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+
+    user_sentences = Story.query.filter_by(user_id=session['user_id']).count()
+    total_sentences = Story.query.filter(Story.user_id != 0).count()  # Exclude initial sentence
+
+    return jsonify({
+        'contributed': user_sentences,
+        'total': total_sentences
+    })
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
