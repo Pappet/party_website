@@ -1,6 +1,8 @@
 # app.py
 from flask import Flask, render_template, request, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
+from flask_wtf.csrf import CSRFProtect
+from functools import wraps
 from datetime import datetime
 import secrets
 import json
@@ -11,6 +13,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///party.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
+csrf = CSRFProtect(app)
 
 # Database Models
 class User(db.Model):
@@ -69,14 +72,19 @@ with app.app_context():
         db.session.add(initial)
         db.session.commit()
 
-# Middleware to update last_seen timestamp
-@app.before_request
-def update_last_seen():
-    if 'user_id' in session:
+# Decorator for protected routes
+def require_login(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({'error': 'Not logged in'}), 401
+        # Update last_seen timestamp
         user = User.query.get(session['user_id'])
         if user:
             user.last_seen = datetime.utcnow()
             db.session.commit()
+        return f(*args, **kwargs)
+    return decorated_function
 
 # Routes
 @app.route('/')
@@ -121,9 +129,8 @@ def get_online_users():
 
 # Truth or Lie endpoints
 @app.route('/api/truthlie', methods=['GET'])
+@require_login
 def get_truthlies():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Not logged in'}), 401
 
     entries = TruthLie.query.all()
     result = []
@@ -162,10 +169,8 @@ def get_truthlies():
     })
 
 @app.route('/api/truthlie', methods=['POST'])
+@require_login
 def submit_truthlie():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Not logged in'}), 401
-
     # Check if user already has an entry
     existing_entry = TruthLie.query.filter_by(user_id=session['user_id']).first()
     if existing_entry:
@@ -187,10 +192,8 @@ def submit_truthlie():
     return jsonify({'success': True})
 
 @app.route('/api/truthlie/vote', methods=['POST'])
+@require_login
 def vote_truthlie():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Not logged in'}), 401
-
     data = request.json
 
     # Get the entry to check the correct answer
@@ -253,10 +256,8 @@ def get_truthlie_leaderboard():
 
 # Compliments endpoints
 @app.route('/api/compliments/target', methods=['GET'])
+@require_login
 def get_compliment_target():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Not logged in'}), 401
-    
     users = User.query.filter(User.id != session['user_id']).all()
     if not users:
         return jsonify({'target': None})
@@ -266,18 +267,14 @@ def get_compliment_target():
     return jsonify({'target': target.name, 'target_id': target.id})
 
 @app.route('/api/compliments/received', methods=['GET'])
+@require_login
 def get_received_compliments():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Not logged in'}), 401
-    
     compliments = Compliment.query.filter_by(to_user_id=session['user_id']).all()
     return jsonify([{'text': c.text} for c in compliments])
 
 @app.route('/api/compliments', methods=['POST'])
+@require_login
 def submit_compliment():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Not logged in'}), 401
-
     data = request.json
     compliment = Compliment(
         from_user_id=session['user_id'],
@@ -290,10 +287,8 @@ def submit_compliment():
     return jsonify({'success': True})
 
 @app.route('/api/compliments/stats', methods=['GET'])
+@require_login
 def get_compliment_stats():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Not logged in'}), 401
-
     sent_count = Compliment.query.filter_by(from_user_id=session['user_id']).count()
     received_count = Compliment.query.filter_by(to_user_id=session['user_id']).count()
 
@@ -304,10 +299,8 @@ def get_compliment_stats():
 
 # Bingo endpoints
 @app.route('/api/bingo', methods=['GET'])
+@require_login
 def get_bingo():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Not logged in'}), 401
-    
     completions = BingoCompletion.query.filter_by(user_id=session['user_id']).all()
     completed_indices = [c.item_index for c in completions]
     
@@ -326,10 +319,8 @@ def get_bingo_leaderboard():
     return jsonify(scores)
 
 @app.route('/api/bingo/toggle', methods=['POST'])
+@require_login
 def toggle_bingo():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Not logged in'}), 401
-
     data = request.json
     item_index = data['item_index']
 
@@ -418,15 +409,14 @@ def get_global_leaderboard():
 
 # Story endpoints
 @app.route('/api/story', methods=['GET'])
+@require_login
 def get_story():
     sentences = Story.query.order_by(Story.created_at).all()
     return jsonify([s.sentence for s in sentences])
 
 @app.route('/api/story', methods=['POST'])
+@require_login
 def add_to_story():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Not logged in'}), 401
-
     data = request.json
     story = Story(
         user_id=session['user_id'],
@@ -438,10 +428,8 @@ def add_to_story():
     return jsonify({'success': True})
 
 @app.route('/api/story/stats', methods=['GET'])
+@require_login
 def get_story_stats():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Not logged in'}), 401
-
     user_sentences = Story.query.filter_by(user_id=session['user_id']).count()
     total_sentences = Story.query.filter(Story.user_id != 0).count()  # Exclude initial sentence
 
