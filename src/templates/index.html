@@ -355,8 +355,8 @@
                 <div id="truthLieEntries" style="margin-top: 30px;"></div>
 
                 <div style="margin-top: 30px;">
-                    <h3 style="color: #667eea; margin-bottom: 15px;">🏆 Rangliste</h3>
-                    <div id="truthLieLeaderboard"></div>
+                    <h3 style="color: #667eea; margin-bottom: 15px;">📊 Deine Statistik</h3>
+                    <div id="truthLiePersonalStats"></div>
                 </div>
             </div>
         </div>
@@ -371,6 +371,11 @@
                 <div id="complimentTarget"></div>
                 <textarea id="complimentText" placeholder="Dein Kompliment..."></textarea>
                 <button onclick="submitCompliment()">Kompliment senden</button>
+
+                <div style="margin-top: 30px;">
+                    <h3 style="color: #667eea; margin-bottom: 15px;">📊 Deine Statistik</h3>
+                    <div id="complimentPersonalStats"></div>
+                </div>
 
                 <div id="receivedCompliments" style="margin-top: 30px;"></div>
             </div>
@@ -387,13 +392,12 @@
                 <div class="stats">
                     <div class="stat-item">
                         <div class="stat-number" id="bingoScore">0</div>
-                        <div class="stat-label">Deine Punkte</div>
+                        <div class="stat-label">Abgeschlossen</div>
                     </div>
-                </div>
-
-                <div style="margin-top: 30px;">
-                    <h3 style="color: #667eea; margin-bottom: 15px;">🏆 Rangliste</h3>
-                    <div id="bingoLeaderboard"></div>
+                    <div class="stat-item">
+                        <div class="stat-number" id="bingoTotal">12</div>
+                        <div class="stat-label">Gesamt</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -409,6 +413,11 @@
 
                 <textarea id="storySentence" placeholder="Dein Satz..."></textarea>
                 <button onclick="addToStory()">Zur Geschichte hinzufügen</button>
+
+                <div style="margin-top: 30px;">
+                    <h3 style="color: #667eea; margin-bottom: 15px;">📊 Deine Statistik</h3>
+                    <div id="storyPersonalStats"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -594,8 +603,8 @@
                 container.appendChild(div);
             });
 
-            // Load leaderboard
-            loadTruthLieLeaderboard();
+            // Load personal stats
+            loadTruthLiePersonalStats();
         }
 
         async function voteLie(entryId, guess) {
@@ -619,34 +628,34 @@
             }
         }
 
-        async function loadTruthLieLeaderboard() {
+        async function loadTruthLiePersonalStats() {
             const response = await fetch('/api/truthlie/leaderboard');
             const scores = await response.json();
 
-            const leaderboard = document.getElementById('truthLieLeaderboard');
-            leaderboard.innerHTML = '';
+            const statsDiv = document.getElementById('truthLiePersonalStats');
+            statsDiv.innerHTML = '';
 
-            if (scores.length === 0) {
-                leaderboard.innerHTML = '<p style="text-align: center; color: #6c757d;">Noch keine Einträge gelöst.</p>';
+            // Find current user's stats
+            const userStats = scores.find(entry => entry.name === currentUser);
+
+            if (!userStats) {
+                statsDiv.innerHTML = '<p style="text-align: center; color: #6c757d;">Du hast noch keine Einträge gelöst. Rate bei anderen mit!</p>';
                 return;
             }
 
-            scores.forEach((entry, index) => {
-                const div = document.createElement('div');
-                div.className = 'leaderboard-entry';
-                if (entry.name === currentUser) {
-                    div.classList.add('current-user');
-                }
-
-                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
-
-                div.innerHTML = `
-                    <span class="leaderboard-rank">${medal}</span>
-                    <span class="leaderboard-name">${entry.name}</span>
-                    <span class="leaderboard-score">${entry.total_attempts} ${entry.total_attempts === 1 ? 'Versuch' : 'Versuche'} (${entry.solved_count} gelöst)</span>
-                `;
-                leaderboard.appendChild(div);
-            });
+            // Display personal stats
+            statsDiv.innerHTML = `
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="stat-number">${userStats.solved_count}</div>
+                        <div class="stat-label">Einträge gelöst</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">${userStats.total_attempts}</div>
+                        <div class="stat-label">${userStats.total_attempts === 1 ? 'Versuch' : 'Versuche'}</div>
+                    </div>
+                </div>
+            `;
         }
 
         // Compliments Functions
@@ -681,9 +690,29 @@
             }
         }
 
+        async function loadComplimentStats() {
+            const response = await fetch('/api/compliments/stats');
+            const stats = await response.json();
+
+            const statsDiv = document.getElementById('complimentPersonalStats');
+            statsDiv.innerHTML = `
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="stat-number">${stats.sent}</div>
+                        <div class="stat-label">Verschickt</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">${stats.received}</div>
+                        <div class="stat-label">Erhalten</div>
+                    </div>
+                </div>
+            `;
+        }
+
         async function loadCompliments() {
             await loadComplimentTarget();
             await loadReceivedCompliments();
+            await loadComplimentStats();
         }
 
         async function submitCompliment() {
@@ -723,32 +752,6 @@
             });
 
             document.getElementById('bingoScore').textContent = data.completed.length;
-            updateLeaderboard();
-        }
-
-        async function updateLeaderboard() {
-            const response = await fetch('/api/bingo/leaderboard');
-            const scores = await response.json();
-
-            const leaderboard = document.getElementById('bingoLeaderboard');
-            leaderboard.innerHTML = '';
-
-            scores.forEach((entry, index) => {
-                const div = document.createElement('div');
-                div.className = 'leaderboard-entry';
-                if (entry.name === currentUser) {
-                    div.classList.add('current-user');
-                }
-
-                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
-
-                div.innerHTML = `
-                    <span class="leaderboard-rank">${medal}</span>
-                    <span class="leaderboard-name">${entry.name}</span>
-                    <span class="leaderboard-score">${entry.score}</span>
-                `;
-                leaderboard.appendChild(div);
-            });
         }
 
         async function toggleBingo(index) {
@@ -767,6 +770,27 @@
 
             const storyDiv = document.getElementById('storyText');
             storyDiv.innerHTML = sentences.join(' ');
+
+            await loadStoryStats();
+        }
+
+        async function loadStoryStats() {
+            const response = await fetch('/api/story/stats');
+            const stats = await response.json();
+
+            const statsDiv = document.getElementById('storyPersonalStats');
+            statsDiv.innerHTML = `
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="stat-number">${stats.contributed}</div>
+                        <div class="stat-label">Deine Sätze</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">${stats.total}</div>
+                        <div class="stat-label">Gesamt</div>
+                    </div>
+                </div>
+            `;
         }
 
         async function addToStory() {
