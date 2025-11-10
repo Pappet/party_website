@@ -316,23 +316,83 @@ def get_bingo_leaderboard():
 def toggle_bingo():
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
-    
+
     data = request.json
     item_index = data['item_index']
-    
+
     existing = BingoCompletion.query.filter_by(
         user_id=session['user_id'],
         item_index=item_index
     ).first()
-    
+
     if existing:
         db.session.delete(existing)
     else:
         completion = BingoCompletion(user_id=session['user_id'], item_index=item_index)
         db.session.add(completion)
-    
+
     db.session.commit()
     return jsonify({'success': True})
+
+# Global Leaderboard endpoint
+@app.route('/api/leaderboard/global', methods=['GET'])
+def get_global_leaderboard():
+    from sqlalchemy import func, case
+    from sqlalchemy.orm import aliased
+
+    # Subquery for Vote points (+10 per correct vote)
+    vote_points = db.session.query(
+        Vote.user_id,
+        (func.count(Vote.id) * 10).label('points')
+    ).filter(
+        Vote.is_correct == True
+    ).group_by(Vote.user_id).subquery()
+
+    # Subquery for BingoCompletion points (+5 per completion)
+    bingo_points = db.session.query(
+        BingoCompletion.user_id,
+        (func.count(BingoCompletion.id) * 5).label('points')
+    ).group_by(BingoCompletion.user_id).subquery()
+
+    # Subquery for Compliment points (+2 per sent compliment)
+    compliment_points = db.session.query(
+        Compliment.from_user_id.label('user_id'),
+        (func.count(Compliment.id) * 2).label('points')
+    ).group_by(Compliment.from_user_id).subquery()
+
+    # Subquery for Story points (+1 per story sentence, excluding user_id=0)
+    story_points = db.session.query(
+        Story.user_id,
+        func.count(Story.id).label('points')
+    ).filter(
+        Story.user_id != 0
+    ).group_by(Story.user_id).subquery()
+
+    # Join all subqueries with User table and calculate total score
+    results = db.session.query(
+        User.name,
+        (
+            func.coalesce(vote_points.c.points, 0) +
+            func.coalesce(bingo_points.c.points, 0) +
+            func.coalesce(compliment_points.c.points, 0) +
+            func.coalesce(story_points.c.points, 0)
+        ).label('total_score')
+    ).outerjoin(
+        vote_points, User.id == vote_points.c.user_id
+    ).outerjoin(
+        bingo_points, User.id == bingo_points.c.user_id
+    ).outerjoin(
+        compliment_points, User.id == compliment_points.c.user_id
+    ).outerjoin(
+        story_points, User.id == story_points.c.user_id
+    ).order_by(
+        db.desc('total_score')
+    ).all()
+
+    # Format results as list of dicts
+    leaderboard = [{'name': name, 'score': int(score)} for name, score in results if score > 0]
+
+    return jsonify(leaderboard)
 
 # Story endpoints
 @app.route('/api/story', methods=['GET'])
