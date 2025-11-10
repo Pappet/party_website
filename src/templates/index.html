@@ -325,6 +325,14 @@
                     <p style="color: #999;">Lädt...</p>
                 </div>
             </div>
+
+            <div class="card">
+                <h2>👑 Party-König Rangliste</h2>
+                <p style="margin-bottom: 15px; color: #6c757d;">Die aktivsten Party-Gäste basierend auf allen Aktivitäten!</p>
+                <div id="globalLeaderboard">
+                    <p style="color: #999;">Lädt...</p>
+                </div>
+            </div>
         </div>
 
         <!-- Truth or Lie Activity -->
@@ -411,6 +419,7 @@
 
         // Auto-refresh interval variables
         let onlineUsersInterval;
+        let globalLeaderboardInterval;
         let truthLieInterval;
         let complimentsInterval;
         let bingoInterval;
@@ -448,6 +457,7 @@
                 document.getElementById('loginScreen').classList.add('hidden');
                 document.getElementById('mainMenu').classList.remove('hidden');
                 startOnlineUsersRefresh(); // Start loading online users
+                startGlobalLeaderboardRefresh(); // Start loading global leaderboard
             }
         }
 
@@ -462,6 +472,7 @@
             stopAllActivityRefresh();
 
             loadOnlineUsers(); // Refresh online users when returning to menu
+            loadGlobalLeaderboard(); // Refresh global leaderboard when returning to menu
         }
 
         function showActivity(activity) {
@@ -793,6 +804,41 @@
             }
         }
 
+        // Global Leaderboard Functions
+        async function loadGlobalLeaderboard() {
+            try {
+                const response = await fetch('/api/leaderboard/global');
+                const scores = await response.json();
+
+                const leaderboard = document.getElementById('globalLeaderboard');
+                leaderboard.innerHTML = '';
+
+                if (scores.length === 0) {
+                    leaderboard.innerHTML = '<p style="text-align: center; color: #6c757d;">Noch keine Aktivitäten. Spiele mit und sammle Punkte!</p>';
+                    return;
+                }
+
+                scores.forEach((entry, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'leaderboard-entry';
+                    if (entry.name === currentUser) {
+                        div.classList.add('current-user');
+                    }
+
+                    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+
+                    div.innerHTML = `
+                        <span class="leaderboard-rank">${medal}</span>
+                        <span class="leaderboard-name">${entry.name}</span>
+                        <span class="leaderboard-score">${entry.score} Punkte</span>
+                    `;
+                    leaderboard.appendChild(div);
+                });
+            } catch (error) {
+                console.error('Error loading global leaderboard:', error);
+            }
+        }
+
         // Auto-refresh online users every 10 seconds
         function startOnlineUsersRefresh() {
             loadOnlineUsers(); // Load immediately
@@ -800,6 +846,15 @@
                 clearInterval(onlineUsersInterval);
             }
             onlineUsersInterval = setInterval(loadOnlineUsers, 10000);
+        }
+
+        // Auto-refresh global leaderboard every 10 seconds
+        function startGlobalLeaderboardRefresh() {
+            loadGlobalLeaderboard(); // Load immediately
+            if (globalLeaderboardInterval) {
+                clearInterval(globalLeaderboardInterval);
+            }
+            globalLeaderboardInterval = setInterval(loadGlobalLeaderboard, 10000);
         }
 
         // Auto-refresh functions for activities
