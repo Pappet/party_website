@@ -639,7 +639,7 @@
         }
 
         // Compliments Functions
-        async function loadCompliments() {
+        async function loadComplimentTarget() {
             const targetResponse = await fetch('/api/compliments/target');
             const targetData = await targetResponse.json();
 
@@ -650,7 +650,9 @@
             } else {
                 targetDiv.innerHTML = '<p>Warte, bis mehr Gäste da sind!</p>';
             }
+        }
 
+        async function loadReceivedCompliments() {
             const receivedResponse = await fetch('/api/compliments/received');
             const received = await receivedResponse.json();
 
@@ -666,6 +668,11 @@
             } else {
                 receivedDiv.innerHTML = '';
             }
+        }
+
+        async function loadCompliments() {
+            await loadComplimentTarget();
+            await loadReceivedCompliments();
         }
 
         async function submitCompliment() {
@@ -807,7 +814,7 @@
             if (complimentsInterval) {
                 clearInterval(complimentsInterval);
             }
-            complimentsInterval = setInterval(loadCompliments, 5000); // Refresh every 5 seconds
+            complimentsInterval = setInterval(loadReceivedCompliments, 5000); // Refresh only received compliments every 5 seconds
         }
 
         function startBingoRefresh() {
