@@ -423,6 +423,25 @@
     </div>
 
     <script>
+        let csrfToken = null;
+
+        // Load CSRF token on page load
+        async function loadCSRFToken() {
+            try {
+                const response = await fetch('/api/csrf-token');
+                const data = await response.json();
+                if (data.status === 'success') {
+                    csrfToken = data.data.csrf_token;
+                    console.log('✅ CSRF Token loaded');
+                }
+            } catch (error) {
+                console.error('Failed to load CSRF token:', error);
+            }
+        }
+
+        // Load token when page loads
+        document.addEventListener('DOMContentLoaded', loadCSRFToken);
+
         let currentUser = '';
         let currentTargetId = null;
 
@@ -449,24 +468,63 @@
             'trägt etwas Lila'
         ];
 
+        async function apiCall(url, options = {}) {
+            try {
+                const headers = {
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                };
+
+                // Füge CSRF Token zu allen POST/PUT/DELETE Requests hinzu
+                if (['POST', 'PUT', 'DELETE'].includes(options.method) && csrfToken) {
+                    headers['X-CSRFToken'] = csrfToken;
+                }
+
+                const response = await fetch(url, {
+                    headers,
+                    ...options
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || `HTTP ${response.status}`);
+                }
+
+                // Return data as-is to maintain compatibility with existing code
+                return data;
+            } catch (error) {
+                console.error('API Error:', error);
+                if (error.message) {
+                    alert(`❌ Fehler: ${error.message}`);
+                }
+                throw error;
+            }
+        }
+
         async function login() {
             const name = document.getElementById('nameInput').value.trim();
-            if (!name) return;
+            if (!name) {
+                alert('Bitte gib deinen Namen ein!');
+                return;
+            }
 
-            const response = await fetch('/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name })
-            });
+            try {
+                const data = await apiCall('/api/login', {
+                    method: 'POST',
+                    body: JSON.stringify({ name })
+                });
 
-            const data = await response.json();
-            if (data.success) {
-                currentUser = data.name;
-                document.getElementById('userName').textContent = name;
-                document.getElementById('loginScreen').classList.add('hidden');
-                document.getElementById('mainMenu').classList.remove('hidden');
-                startOnlineUsersRefresh(); // Start loading online users
-                startGlobalLeaderboardRefresh(); // Start loading global leaderboard
+                if (data.success) {
+                    currentUser = data.name;
+                    document.getElementById('userName').textContent = name;
+                    document.getElementById('loginScreen').classList.add('hidden');
+                    document.getElementById('mainMenu').classList.remove('hidden');
+                    startOnlineUsersRefresh(); // Start loading online users
+                    startGlobalLeaderboardRefresh(); // Start loading global leaderboard
+                }
+            } catch (error) {
+                // Error bereits angezeigt von apiCall()
             }
         }
 
@@ -527,20 +585,18 @@
 
             if (!truth1 || !truth2 || !lie) return;
 
-            const response = await fetch('/api/truthlie', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ truth1, truth2, lie })
-            });
+            try {
+                await apiCall('/api/truthlie', {
+                    method: 'POST',
+                    body: JSON.stringify({ truth1, truth2, lie })
+                });
 
-            if (response.ok) {
                 document.getElementById('truth1').value = '';
                 document.getElementById('truth2').value = '';
                 document.getElementById('lie').value = '';
                 loadTruthLies();
-            } else {
-                const data = await response.json();
-                alert(data.error || 'Fehler beim Absenden');
+            } catch (error) {
+                // Error bereits angezeigt von apiCall()
             }
         }
 
@@ -646,23 +702,20 @@
         }
 
         async function voteLie(entryId, guess) {
-            const response = await fetch('/api/truthlie/vote', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ entry_id: entryId, guess })
-            });
+            try {
+                const data = await apiCall('/api/truthlie/vote', {
+                    method: 'POST',
+                    body: JSON.stringify({ entry_id: entryId, guess })
+                });
 
-            const data = await response.json();
-
-            if (response.ok) {
                 if (data.correct) {
                     alert(`🎉 Richtig! Du hast es in ${data.attempts} ${data.attempts === 1 ? 'Versuch' : 'Versuchen'} geschafft!`);
                 } else {
                     alert(`❌ Leider falsch! Versuch: ${data.attempts}. Versuche es nochmal!`);
                 }
                 loadTruthLies();
-            } else {
-                alert(data.error || 'Fehler beim Abstimmen');
+            } catch (error) {
+                // Error bereits angezeigt von apiCall()
             }
         }
 
@@ -757,15 +810,18 @@
             const text = document.getElementById('complimentText').value.trim();
             if (!text || !currentTargetId) return;
 
-            await fetch('/api/compliments', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ to_user_id: currentTargetId, text })
-            });
+            try {
+                await apiCall('/api/compliments', {
+                    method: 'POST',
+                    body: JSON.stringify({ to_user_id: currentTargetId, text })
+                });
 
-            document.getElementById('complimentText').value = '';
-            alert('Kompliment gesendet! 💝');
-            loadCompliments();
+                document.getElementById('complimentText').value = '';
+                alert('Kompliment gesendet! 💝');
+                loadCompliments();
+            } catch (error) {
+                // Error bereits angezeigt von apiCall()
+            }
         }
 
         // Bingo Functions
@@ -793,12 +849,15 @@
         }
 
         async function toggleBingo(index) {
-            await fetch('/api/bingo/toggle', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ item_index: index })
-            });
-            loadBingo();
+            try {
+                await apiCall('/api/bingo/toggle', {
+                    method: 'POST',
+                    body: JSON.stringify({ item_index: index })
+                });
+                loadBingo();
+            } catch (error) {
+                // Error bereits angezeigt von apiCall()
+            }
         }
 
         // Story Functions
@@ -835,14 +894,17 @@
             const sentence = document.getElementById('storySentence').value.trim();
             if (!sentence) return;
 
-            await fetch('/api/story', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sentence })
-            });
+            try {
+                await apiCall('/api/story', {
+                    method: 'POST',
+                    body: JSON.stringify({ sentence })
+                });
 
-            document.getElementById('storySentence').value = '';
-            loadStory();
+                document.getElementById('storySentence').value = '';
+                loadStory();
+            } catch (error) {
+                // Error bereits angezeigt von apiCall()
+            }
         }
 
         // Online Users Functions
