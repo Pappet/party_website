@@ -15,6 +15,15 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 csrf = CSRFProtect(app)
 
+# Helper function for unified API responses
+def api_response(status='success', data=None, error=None, code=200):
+    """Einheitliche API-Response Format"""
+    return jsonify({
+        'status': status,
+        'data': data,
+        'error': error
+    }), code
+
 # Database Models
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -77,7 +86,7 @@ def require_login(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
-            return jsonify({'error': 'Not logged in'}), 401
+            return api_response('error', error='Not logged in', code=401)
         # Update last_seen timestamp
         user = User.query.get(session['user_id'])
         if user:
@@ -98,7 +107,7 @@ def login():
     name = data.get('name', '').strip()
 
     if not name:
-        return jsonify({'error': 'Name required'}), 400
+        return api_response('error', error='Name required', code=400)
 
     user = User.query.filter_by(name=name).first()
     if not user:
@@ -113,18 +122,18 @@ def login():
     session['user_id'] = user.id
     session['user_name'] = user.name
 
-    return jsonify({'success': True, 'name': user.name})
+    return api_response('success', data={'name': user.name})
 
 @app.route('/api/csrf-token', methods=['GET'])
 @csrf.exempt  # Der Token-Endpoint selbst braucht keinen Token
 def get_csrf_token():
     token = generate_csrf()
-    return jsonify({'status': 'success', 'data': {'csrf_token': token}})
+    return api_response('success', data={'csrf_token': token})
 
 @app.route('/api/users', methods=['GET'])
 def get_users():
     users = User.query.all()
-    return jsonify([{'id': u.id, 'name': u.name} for u in users])
+    return api_response('success', data=[{'id': u.id, 'name': u.name} for u in users])
 
 @app.route('/api/users/online', methods=['GET'])
 def get_online_users():
@@ -132,7 +141,7 @@ def get_online_users():
     # Consider users online if they were active in the last 5 minutes
     threshold = datetime.utcnow() - timedelta(minutes=5)
     online_users = User.query.filter(User.last_seen >= threshold).all()
-    return jsonify([{'id': u.id, 'name': u.name} for u in online_users])
+    return api_response('success', data=[{'id': u.id, 'name': u.name} for u in online_users])
 
 # Truth or Lie endpoints
 @app.route('/api/truthlie', methods=['GET'])
@@ -169,7 +178,7 @@ def get_truthlies():
         else:
             result.append(entry_data)
 
-    return jsonify({
+    return api_response('success', data={
         'entries': result,
         'user_has_entry': user_has_entry,
         'user_entry': user_entry
@@ -181,7 +190,7 @@ def submit_truthlie():
     # Check if user already has an entry
     existing_entry = TruthLie.query.filter_by(user_id=session['user_id']).first()
     if existing_entry:
-        return jsonify({'error': 'You already submitted your statements'}), 400
+        return api_response('error', error='You already submitted your statements', code=400)
 
     data = request.json
     statements = [data['truth1'], data['truth2'], data['lie']]
@@ -196,7 +205,7 @@ def submit_truthlie():
     db.session.add(entry)
     db.session.commit()
 
-    return jsonify({'success': True})
+    return api_response('success')
 
 @app.route('/api/truthlie/vote', methods=['POST'])
 @require_login
@@ -206,7 +215,7 @@ def vote_truthlie():
     # Get the entry to check the correct answer
     entry = TruthLie.query.get(data['entry_id'])
     if not entry:
-        return jsonify({'error': 'Entry not found'}), 404
+        return api_response('error', error='Entry not found', code=404)
 
     # Check if already voted correctly
     existing = Vote.query.filter_by(
@@ -215,7 +224,7 @@ def vote_truthlie():
     ).first()
 
     if existing and existing.is_correct:
-        return jsonify({'error': 'Already guessed correctly'}), 400
+        return api_response('error', error='Already guessed correctly', code=400)
 
     # Check if this guess is correct
     is_correct = data['guess'] == entry.lie
@@ -238,7 +247,7 @@ def vote_truthlie():
 
     db.session.commit()
 
-    return jsonify({'success': True, 'correct': is_correct, 'attempts': existing.attempts})
+    return api_response('success', data={'correct': is_correct, 'attempts': existing.attempts})
 
 @app.route('/api/truthlie/leaderboard', methods=['GET'])
 def get_truthlie_leaderboard():
@@ -259,7 +268,7 @@ def get_truthlie_leaderboard():
 
     # Sort by total attempts (ascending - fewer is better)
     scores.sort(key=lambda x: x['total_attempts'])
-    return jsonify(scores)
+    return api_response('success', data=scores)
 
 # Compliments endpoints
 @app.route('/api/compliments/target', methods=['GET'])
@@ -267,17 +276,17 @@ def get_truthlie_leaderboard():
 def get_compliment_target():
     users = User.query.filter(User.id != session['user_id']).all()
     if not users:
-        return jsonify({'target': None})
-    
+        return api_response('success', data={'target': None})
+
     import random
     target = random.choice(users)
-    return jsonify({'target': target.name, 'target_id': target.id})
+    return api_response('success', data={'target': target.name, 'target_id': target.id})
 
 @app.route('/api/compliments/received', methods=['GET'])
 @require_login
 def get_received_compliments():
     compliments = Compliment.query.filter_by(to_user_id=session['user_id']).all()
-    return jsonify([{'text': c.text} for c in compliments])
+    return api_response('success', data=[{'text': c.text} for c in compliments])
 
 @app.route('/api/compliments', methods=['POST'])
 @require_login
@@ -291,7 +300,7 @@ def submit_compliment():
     db.session.add(compliment)
     db.session.commit()
 
-    return jsonify({'success': True})
+    return api_response('success')
 
 @app.route('/api/compliments/stats', methods=['GET'])
 @require_login
@@ -299,7 +308,7 @@ def get_compliment_stats():
     sent_count = Compliment.query.filter_by(from_user_id=session['user_id']).count()
     received_count = Compliment.query.filter_by(to_user_id=session['user_id']).count()
 
-    return jsonify({
+    return api_response('success', data={
         'sent': sent_count,
         'received': received_count
     })
@@ -310,20 +319,20 @@ def get_compliment_stats():
 def get_bingo():
     completions = BingoCompletion.query.filter_by(user_id=session['user_id']).all()
     completed_indices = [c.item_index for c in completions]
-    
-    return jsonify({'completed': completed_indices})
+
+    return api_response('success', data={'completed': completed_indices})
 
 @app.route('/api/bingo/leaderboard', methods=['GET'])
 def get_bingo_leaderboard():
     users = User.query.all()
     scores = []
-    
+
     for user in users:
         count = BingoCompletion.query.filter_by(user_id=user.id).count()
         scores.append({'name': user.name, 'score': count})
-    
+
     scores.sort(key=lambda x: x['score'], reverse=True)
-    return jsonify(scores)
+    return api_response('success', data=scores)
 
 @app.route('/api/bingo/toggle', methods=['POST'])
 @require_login
@@ -343,7 +352,7 @@ def toggle_bingo():
         db.session.add(completion)
 
     db.session.commit()
-    return jsonify({'success': True})
+    return api_response('success')
 
 # Global Leaderboard endpoint
 @app.route('/api/leaderboard/global', methods=['GET'])
@@ -412,14 +421,14 @@ def get_global_leaderboard():
     # Format results as list of dicts
     leaderboard = [{'name': name, 'score': int(score)} for name, score in results if score > 0]
 
-    return jsonify(leaderboard)
+    return api_response('success', data=leaderboard)
 
 # Story endpoints
 @app.route('/api/story', methods=['GET'])
 @require_login
 def get_story():
     sentences = Story.query.order_by(Story.created_at).all()
-    return jsonify([s.sentence for s in sentences])
+    return api_response('success', data=[s.sentence for s in sentences])
 
 @app.route('/api/story', methods=['POST'])
 @require_login
@@ -432,7 +441,7 @@ def add_to_story():
     db.session.add(story)
     db.session.commit()
 
-    return jsonify({'success': True})
+    return api_response('success')
 
 @app.route('/api/story/stats', methods=['GET'])
 @require_login
@@ -440,7 +449,7 @@ def get_story_stats():
     user_sentences = Story.query.filter_by(user_id=session['user_id']).count()
     total_sentences = Story.query.filter(Story.user_id != 0).count()  # Exclude initial sentence
 
-    return jsonify({
+    return api_response('success', data={
         'contributed': user_sentences,
         'total': total_sentences
     })
