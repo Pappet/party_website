@@ -1,7 +1,7 @@
 # app.py
 from flask import Flask, render_template, request, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 from functools import wraps
 from datetime import datetime
 import secrets
@@ -92,6 +92,7 @@ def index():
     return render_template('index.html')
 
 @app.route('/api/login', methods=['POST'])
+@csrf.exempt
 def login():
     data = request.json
     name = data.get('name', '').strip()
@@ -113,6 +114,12 @@ def login():
     session['user_name'] = user.name
 
     return jsonify({'success': True, 'name': user.name})
+
+@app.route('/api/csrf-token', methods=['GET'])
+@csrf.exempt  # Der Token-Endpoint selbst braucht keinen Token
+def get_csrf_token():
+    token = generate_csrf()
+    return jsonify({'status': 'success', 'data': {'csrf_token': token}})
 
 @app.route('/api/users', methods=['GET'])
 def get_users():
