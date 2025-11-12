@@ -2,10 +2,13 @@
 from flask import Flask, render_template, request, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFProtect, generate_csrf
+from flask_socketio import SocketIO, emit, join_room, leave_room
 from functools import wraps
 from datetime import datetime
 import secrets
 import json
+import time
+from collections import defaultdict
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = secrets.token_hex(16)
@@ -15,6 +18,21 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 csrf = CSRFProtect(app)
 
+# Initialize SocketIO with threading mode (optimal for Raspberry Pi)
+socketio = SocketIO(
+    app,
+    async_mode='threading',
+    cors_allowed_origins='*',  # Allow all origins in local network
+    ping_timeout=60,
+    ping_interval=25,
+    logger=False,
+    engineio_logger=False
+)
+
+# Rate limiting for WebSocket events
+rate_limit_storage = defaultdict(list)
+MAX_EVENTS_PER_SECOND = 10
+
 # Helper function for unified API responses
 def api_response(status='success', data=None, error=None, code=200):
     """Einheitliche API-Response Format"""
@@ -23,6 +41,26 @@ def api_response(status='success', data=None, error=None, code=200):
         'data': data,
         'error': error
     }), code
+
+# Rate limiting helper for WebSocket
+def check_rate_limit(sid):
+    """Check if client exceeds rate limit (max 10 events per second)"""
+    now = time.time()
+    rate_limit_storage[sid] = [t for t in rate_limit_storage[sid] if now - t < 1]
+
+    if len(rate_limit_storage[sid]) >= MAX_EVENTS_PER_SECOND:
+        return False
+
+    rate_limit_storage[sid].append(now)
+    return True
+
+# Helper to broadcast updates to all connected clients
+def broadcast_update(event_name, data, room=None):
+    """Broadcast an update to all clients or specific room"""
+    if room:
+        socketio.emit(event_name, data, room=room)
+    else:
+        socketio.emit(event_name, data, broadcast=True)
 
 # Database Models
 class User(db.Model):
@@ -94,6 +132,135 @@ def require_login(f):
             db.session.commit()
         return f(*args, **kwargs)
     return decorated_function
+
+# ===== WEBSOCKET EVENT HANDLERS =====
+
+@socketio.on('connect')
+def handle_connect():
+    """Handle client connection"""
+    print(f'Client connected: {request.sid}')
+
+    # Join user to their personal room if logged in
+    if 'user_id' in session:
+        user_room = f"user_{session['user_id']}"
+        join_room(user_room)
+
+        user = User.query.get(session['user_id'])
+        if user:
+            user.last_seen = datetime.utcnow()
+            db.session.commit()
+
+            # Broadcast user joined to all clients
+            broadcast_update('user_status', {
+                'user_id': user.id,
+                'user_name': user.name,
+                'status': 'online'
+            })
+
+            # Send online count to all clients
+            from datetime import timedelta
+            threshold = datetime.utcnow() - timedelta(minutes=5)
+            online_count = User.query.filter(User.last_seen >= threshold).count()
+            broadcast_update('online_count', {'count': online_count})
+
+    emit('connected', {'sid': request.sid})
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    """Handle client disconnection"""
+    print(f'Client disconnected: {request.sid}')
+
+    # Clean up rate limiting storage
+    if request.sid in rate_limit_storage:
+        del rate_limit_storage[request.sid]
+
+    # Leave user room if logged in
+    if 'user_id' in session:
+        user_room = f"user_{session['user_id']}"
+        leave_room(user_room)
+
+        user = User.query.get(session['user_id'])
+        if user:
+            # Broadcast user left
+            broadcast_update('user_status', {
+                'user_id': user.id,
+                'user_name': user.name,
+                'status': 'offline'
+            })
+
+@socketio.on('request_update')
+def handle_request_update(data):
+    """Handle client request for specific updates"""
+    if not check_rate_limit(request.sid):
+        emit('error', {'message': 'Rate limit exceeded'})
+        return
+
+    update_type = data.get('type')
+
+    if update_type == 'online_users':
+        from datetime import timedelta
+        threshold = datetime.utcnow() - timedelta(minutes=5)
+        online_users = User.query.filter(User.last_seen >= threshold).all()
+        emit('online_users_update', {
+            'users': [{'id': u.id, 'name': u.name} for u in online_users]
+        })
+
+    elif update_type == 'leaderboard':
+        # Get global leaderboard (reuse logic from API)
+        from sqlalchemy import func
+        vote_points = db.session.query(
+            Vote.user_id,
+            (func.count(Vote.id) * 10).label('points')
+        ).filter(Vote.is_correct == True).group_by(Vote.user_id).subquery()
+
+        bingo_points = db.session.query(
+            BingoCompletion.user_id,
+            (func.count(BingoCompletion.id) * 5).label('points')
+        ).group_by(BingoCompletion.user_id).subquery()
+
+        compliment_points = db.session.query(
+            Compliment.from_user_id.label('user_id'),
+            (func.count(Compliment.id) * 2).label('points')
+        ).group_by(Compliment.from_user_id).subquery()
+
+        story_points = db.session.query(
+            Story.user_id,
+            func.count(Story.id).label('points')
+        ).filter(Story.user_id != 0).group_by(Story.user_id).subquery()
+
+        truthlie_creation_points = db.session.query(
+            TruthLie.user_id,
+            (func.count(TruthLie.id) * 5).label('points')
+        ).group_by(TruthLie.user_id).subquery()
+
+        results = db.session.query(
+            User.name,
+            (
+                func.coalesce(vote_points.c.points, 0) +
+                func.coalesce(bingo_points.c.points, 0) +
+                func.coalesce(compliment_points.c.points, 0) +
+                func.coalesce(story_points.c.points, 0) +
+                func.coalesce(truthlie_creation_points.c.points, 0)
+            ).label('total_score')
+        ).outerjoin(
+            vote_points, User.id == vote_points.c.user_id
+        ).outerjoin(
+            bingo_points, User.id == bingo_points.c.user_id
+        ).outerjoin(
+            compliment_points, User.id == compliment_points.c.user_id
+        ).outerjoin(
+            story_points, User.id == story_points.c.user_id
+        ).outerjoin(
+            truthlie_creation_points, User.id == truthlie_creation_points.c.user_id
+        ).order_by(db.desc('total_score')).all()
+
+        leaderboard = [{'name': name, 'score': int(score)} for name, score in results if score > 0]
+        emit('leaderboard_update', {'leaderboard': leaderboard})
+
+@socketio.on('ping')
+def handle_ping():
+    """Handle ping for connection keepalive"""
+    emit('pong')
 
 # Routes
 @app.route('/')
@@ -205,6 +372,13 @@ def submit_truthlie():
     db.session.add(entry)
     db.session.commit()
 
+    # Broadcast new entry via WebSocket
+    user = User.query.get(session['user_id'])
+    broadcast_update('truthlie_new_entry', {
+        'user_name': user.name,
+        'entry_id': entry.id
+    })
+
     return api_response('success')
 
 @app.route('/api/truthlie/vote', methods=['POST'])
@@ -246,6 +420,18 @@ def vote_truthlie():
         db.session.add(existing)
 
     db.session.commit()
+
+    # Broadcast vote update via WebSocket
+    user = User.query.get(session['user_id'])
+    broadcast_update('truthlie_update', {
+        'entry_id': entry.id,
+        'user_name': user.name,
+        'is_correct': is_correct
+    })
+
+    # If correct, broadcast leaderboard update
+    if is_correct:
+        broadcast_update('trigger_confetti', {})
 
     return api_response('success', data={'correct': is_correct, 'attempts': existing.attempts})
 
@@ -300,6 +486,24 @@ def submit_compliment():
     db.session.add(compliment)
     db.session.commit()
 
+    # Send WebSocket events
+    from_user = User.query.get(session['user_id'])
+    to_user = User.query.get(data['to_user_id'])
+
+    # Send confirmation to sender
+    broadcast_update('new_compliment_sent', {
+        'to_user': to_user.name
+    }, room=f"user_{session['user_id']}")
+
+    # Send notification to receiver (private message)
+    broadcast_update('new_compliment_received', {
+        'text': data['text'],
+        'from_user': from_user.name
+    }, room=f"user_{data['to_user_id']}")
+
+    # Trigger confetti for receiver
+    broadcast_update('trigger_confetti', {}, room=f"user_{data['to_user_id']}")
+
     return api_response('success')
 
 @app.route('/api/compliments/stats', methods=['GET'])
@@ -345,14 +549,35 @@ def toggle_bingo():
         item_index=item_index
     ).first()
 
+    is_completion = False
     if existing:
         db.session.delete(existing)
     else:
         completion = BingoCompletion(user_id=session['user_id'], item_index=item_index)
         db.session.add(completion)
+        is_completion = True
 
     db.session.commit()
-    return api_response('success')
+
+    # Get updated progress
+    completions = BingoCompletion.query.filter_by(user_id=session['user_id']).all()
+    completed_indices = [c.item_index for c in completions]
+
+    # Broadcast bingo update
+    user = User.query.get(session['user_id'])
+    broadcast_update('bingo_update', {
+        'user_name': user.name,
+        'completed_count': len(completed_indices)
+    })
+
+    # Check for full bingo
+    if len(completed_indices) == 12 and is_completion:
+        broadcast_update('bingo_complete', {
+            'user_name': user.name
+        })
+        broadcast_update('trigger_confetti', {})
+
+    return api_response('success', data={'completed': completed_indices})
 
 # Global Leaderboard endpoint
 @app.route('/api/leaderboard/global', methods=['GET'])
@@ -441,6 +666,16 @@ def add_to_story():
     db.session.add(story)
     db.session.commit()
 
+    # Broadcast story update via WebSocket
+    user = User.query.get(session['user_id'])
+    sentences = Story.query.order_by(Story.created_at).all()
+
+    broadcast_update('story_update', {
+        'user_name': user.name,
+        'sentence': data['sentence'],
+        'full_story': [s.sentence for s in sentences]
+    })
+
     return api_response('success')
 
 @app.route('/api/story/stats', methods=['GET'])
@@ -455,4 +690,11 @@ def get_story_stats():
     })
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Use socketio.run instead of app.run for WebSocket support
+    socketio.run(
+        app,
+        host='0.0.0.0',
+        port=5000,
+        debug=True,
+        allow_unsafe_werkzeug=True  # For development only
+    )
