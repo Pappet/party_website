@@ -58,9 +58,9 @@ def check_rate_limit(sid):
 def broadcast_update(event_name, data, room=None):
     """Broadcast an update to all clients or specific room"""
     if room:
-        socketio.emit(event_name, data, room=room)
+        socketio.emit(event_name, data, room=room, skip_sid=None)
     else:
-        socketio.emit(event_name, data, broadcast=True)
+        socketio.emit(event_name, data)
 
 # Database Models
 class User(db.Model):
@@ -696,5 +696,5 @@ if __name__ == '__main__':
         host='0.0.0.0',
         port=5000,
         debug=True,
-        allow_unsafe_werkzeug=True  # For development only
+        #allow_unsafe_werkzeug=True  # For development only
     )
