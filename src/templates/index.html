@@ -1970,16 +1970,23 @@
 
                     if (entry.votes[currentUser]) {
                         const userVote = entry.votes[currentUser];
+                        // Normalize strings for comparison (trim whitespace)
+                        const normalizedGuess = userVote.guess.trim();
+                        const normalizedStmt = stmt.trim();
+
                         if (userVote.is_correct) {
-                            if (userVote.guess === stmt) {
+                            // User guessed correctly
+                            if (normalizedGuess === normalizedStmt) {
                                 const correctText = document.createTextNode(` ✅ Richtig! (${userVote.attempts} ${userVote.attempts === 1 ? 'Versuch' : 'Versuche'})`);
                                 stmtDiv.appendChild(correctText);
                             }
                         } else {
-                            if (userVote.guess === stmt) {
+                            // User guessed incorrectly
+                            if (normalizedGuess === normalizedStmt) {
                                 const wrongText = document.createTextNode(` ❌ Falsch! (${userVote.attempts} ${userVote.attempts === 1 ? 'Versuch' : 'Versuche'})`);
                                 stmtDiv.appendChild(wrongText);
                             } else {
+                                // Show vote button for statements not yet tried
                                 stmtDiv.appendChild(document.createTextNode(' '));
                                 stmtDiv.appendChild(createVoteButton(entry.id, stmt));
                             }
