@@ -88,6 +88,10 @@ class Vote(db.Model):
     truth_lie = db.relationship('TruthLie', backref='votes')
     user = db.relationship('User')
 
+    __table_args__ = (
+        db.UniqueConstraint('truth_lie_id', 'user_id', name='uix_vote_user'),
+    )
+
 class Compliment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     from_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -322,13 +326,18 @@ def get_truthlies():
 
     for entry in entries:
         votes = {}
+        # Group votes by user and only keep the latest one (in case of duplicates)
         for vote in entry.votes:
-            votes[vote.user.name] = {
-                'guess': vote.guess,
-                'correct': vote.guess == entry.lie,
-                'attempts': vote.attempts,
-                'is_correct': vote.is_correct
-            }
+            user_name = vote.user.name
+            # Only add if not exists, or if this vote is newer
+            if user_name not in votes or vote.created_at > votes[user_name].get('created_at', datetime.min):
+                votes[user_name] = {
+                    'guess': vote.guess.strip(),  # Trim whitespace
+                    'correct': vote.guess.strip() == entry.lie.strip(),
+                    'attempts': vote.attempts,
+                    'is_correct': vote.is_correct,
+                    'created_at': vote.created_at
+                }
 
         entry_data = {
             'id': entry.id,
@@ -391,6 +400,10 @@ def vote_truthlie():
     if not entry:
         return api_response('error', error='Entry not found', code=404)
 
+    # Normalize the guess (trim whitespace)
+    guess = data['guess'].strip()
+    lie = entry.lie.strip()
+
     # Check if already voted correctly
     existing = Vote.query.filter_by(
         truth_lie_id=data['entry_id'],
@@ -401,11 +414,11 @@ def vote_truthlie():
         return api_response('error', error='Already guessed correctly', code=400)
 
     # Check if this guess is correct
-    is_correct = data['guess'] == entry.lie
+    is_correct = guess == lie
 
     if existing:
         # Update existing vote with new guess and increment attempts
-        existing.guess = data['guess']
+        existing.guess = guess
         existing.attempts += 1
         existing.is_correct = is_correct
     else:
@@ -413,7 +426,7 @@ def vote_truthlie():
         existing = Vote(
             truth_lie_id=data['entry_id'],
             user_id=session['user_id'],
-            guess=data['guess'],
+            guess=guess,
             attempts=1,
             is_correct=is_correct
         )
