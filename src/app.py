@@ -261,6 +261,40 @@ def handle_request_update(data):
         leaderboard = [{'name': name, 'score': int(score)} for name, score in results if score > 0]
         emit('leaderboard_update', {'leaderboard': leaderboard})
 
+@socketio.on('authenticate_user')
+def handle_authenticate_user():
+    """Handle user authentication after HTTP login"""
+    if 'user_id' not in session:
+        emit('error', {'message': 'Not authenticated'})
+        return
+
+    # Join user to their personal room
+    user_room = f"user_{session['user_id']}"
+    join_room(user_room)
+
+    user = User.query.get(session['user_id'])
+    if user:
+        user.last_seen = datetime.utcnow()
+        db.session.commit()
+
+        print(f'User {user.name} (ID: {user.id}) authenticated and joined room {user_room}')
+
+        # Broadcast user joined to all clients
+        broadcast_update('user_status', {
+            'user_id': user.id,
+            'user_name': user.name,
+            'status': 'online'
+        })
+
+        # Send online count to all clients
+        from datetime import timedelta
+        threshold = datetime.utcnow() - timedelta(minutes=5)
+        online_count = User.query.filter(User.last_seen >= threshold).count()
+        broadcast_update('online_count', {'count': online_count})
+
+        # Confirm authentication to the client
+        emit('authenticated', {'user_id': user.id, 'user_name': user.name, 'room': user_room})
+
 @socketio.on('ping')
 def handle_ping():
     """Handle ping for connection keepalive"""
