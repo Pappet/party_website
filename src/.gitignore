@@ -1,3 +1,6 @@
+# Flask session secret key (should not be committed)
+secret_key.txt
+
 # Python Virtual Environments
 venv/
 .venv/
@@ -25,8 +28,9 @@ dist/
 # oder, wie in Ihrem app.py, die SQLite-Datenbank ('party.db').
 instance/
 
-# Explizites Ignorieren von SQLite-Datenbanken
+# Database
 *.db
+*.sqlite
 *.sqlite3
 
 # Log-Dateien
