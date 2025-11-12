@@ -8,10 +8,37 @@ from datetime import datetime
 import secrets
 import json
 import time
+import os
 from collections import defaultdict
 
+def get_or_create_secret_key():
+    """Load SECRET_KEY from file or create a new one that persists across restarts"""
+    secret_file = 'secret_key.txt'
+
+    # Try to load existing secret key
+    if os.path.exists(secret_file):
+        try:
+            with open(secret_file, 'r') as f:
+                secret_key = f.read().strip()
+                if secret_key:
+                    print(f"✓ Loaded existing SECRET_KEY from {secret_file}")
+                    return secret_key
+        except Exception as e:
+            print(f"⚠ Warning: Could not read {secret_file}: {e}")
+
+    # Generate new secret key and save it
+    secret_key = secrets.token_hex(32)  # 64 characters
+    try:
+        with open(secret_file, 'w') as f:
+            f.write(secret_key)
+        print(f"✓ Generated new SECRET_KEY and saved to {secret_file}")
+    except Exception as e:
+        print(f"⚠ Warning: Could not save SECRET_KEY to {secret_file}: {e}")
+
+    return secret_key
+
 app = Flask(__name__)
-app.config['SECRET_KEY'] = secrets.token_hex(16)
+app.config['SECRET_KEY'] = get_or_create_secret_key()
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///party.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -334,6 +361,28 @@ def login():
 def get_csrf_token():
     token = generate_csrf()
     return api_response('success', data={'csrf_token': token})
+
+@app.route('/api/session', methods=['GET'])
+@csrf.exempt
+def get_session():
+    """Check if user has a valid session"""
+    if 'user_id' not in session:
+        return api_response('error', error='No active session', code=401)
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        # Session exists but user was deleted
+        session.clear()
+        return api_response('error', error='User not found', code=404)
+
+    # Update last_seen timestamp
+    user.last_seen = datetime.utcnow()
+    db.session.commit()
+
+    return api_response('success', data={
+        'user_id': user.id,
+        'user_name': user.name
+    })
 
 @app.route('/api/users', methods=['GET'])
 def get_users():
