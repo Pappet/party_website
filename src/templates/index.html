@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎉 Party App</title>
+    <!-- Socket.IO Client Library -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <style>
         /* ===== CSS VARIABLES SYSTEM ===== */
         :root {
@@ -542,6 +544,40 @@
             opacity: 0.5;
         }
 
+        /* ===== CONNECTION STATUS INDICATOR ===== */
+        .connection-status {
+            position: fixed;
+            top: var(--space-md);
+            left: 150px;
+            z-index: var(--z-fixed);
+            background: var(--color-bg-primary);
+            border: 2px solid var(--color-border);
+            border-radius: var(--radius-full);
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: var(--shadow-md);
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .connection-status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--color-error);
+            animation: pulse 2s infinite;
+        }
+
+        .connection-status.connected .connection-status-dot {
+            background: var(--color-success);
+        }
+
+        .connection-status.connecting .connection-status-dot {
+            background: var(--color-warning);
+        }
+
         /* ===== PAGE TRANSITIONS ===== */
         .page-transition-enter {
             animation: pageEnter var(--transition-base) ease-out;
@@ -863,6 +899,13 @@
                 left: 70px;
             }
 
+            .connection-status {
+                left: var(--space-xs);
+                top: 70px;
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+
             .toast-container {
                 top: var(--space-xs);
                 right: var(--space-xs);
@@ -931,6 +974,12 @@
     <!-- Sound Toggle -->
     <div class="sound-toggle" onclick="toggleSound()" title="Toggle sound (Alt+S)">
         <span id="soundIcon">🔊</span>
+    </div>
+
+    <!-- Connection Status -->
+    <div class="connection-status connecting" id="connectionStatus" title="WebSocket connection status">
+        <div class="connection-status-dot"></div>
+        <span id="connectionText">Verbinde...</span>
     </div>
 
     <!-- Toast Container -->
@@ -1100,17 +1149,15 @@
         // ===== STATE MANAGEMENT =====
         let csrfToken = null;
         let currentUser = '';
+        let currentUserId = null;
         let currentTargetId = null;
         let soundEnabled = true;
         let lastReceivedComplimentsCount = 0;
 
-        // Auto-refresh interval variables
-        let onlineUsersInterval;
-        let globalLeaderboardInterval;
-        let truthLieInterval;
-        let complimentsInterval;
-        let bingoInterval;
-        let storyInterval;
+        // WebSocket connection
+        let socket = null;
+        let reconnectAttempts = 0;
+        let maxReconnectAttempts = 10;
 
         // Auto-save timers
         const autoSaveTimers = {};
@@ -1171,6 +1218,251 @@
                     setTimeout(() => toast.remove(), 300);
                 }
             }, 5000);
+        }
+
+        // ===== WEBSOCKET CONNECTION =====
+        function initializeWebSocket() {
+            // Initialize Socket.IO connection
+            socket = io({
+                transports: ['websocket', 'polling'],  // Try WebSocket first, fallback to polling
+                reconnection: true,
+                reconnectionAttempts: maxReconnectAttempts,
+                reconnectionDelay: 1000,
+                reconnectionDelayMax: 5000,
+                timeout: 20000
+            });
+
+            // Connection events
+            socket.on('connect', () => {
+                console.log('✅ WebSocket connected');
+                reconnectAttempts = 0;
+                updateConnectionStatus('connected');
+
+                // Request initial data
+                if (currentUserId) {
+                    requestUpdate('online_users');
+                    requestUpdate('leaderboard');
+                }
+            });
+
+            socket.on('disconnect', (reason) => {
+                console.log('❌ WebSocket disconnected:', reason);
+                updateConnectionStatus('disconnected');
+            });
+
+            socket.on('connect_error', (error) => {
+                console.error('Connection error:', error);
+                reconnectAttempts++;
+                updateConnectionStatus('error');
+
+                if (reconnectAttempts >= maxReconnectAttempts) {
+                    showToast('Verbindung fehlgeschlagen. Lade Seite neu.', 'error');
+                }
+            });
+
+            socket.on('reconnect', (attemptNumber) => {
+                console.log('🔄 Reconnected after', attemptNumber, 'attempts');
+                showToast('Verbindung wiederhergestellt!', 'success');
+                reconnectAttempts = 0;
+            });
+
+            socket.on('reconnecting', (attemptNumber) => {
+                console.log('🔄 Reconnecting attempt', attemptNumber);
+                updateConnectionStatus('connecting');
+            });
+
+            // Custom events
+            socket.on('connected', (data) => {
+                console.log('Connected with SID:', data.sid);
+            });
+
+            socket.on('error', (data) => {
+                console.error('Socket error:', data.message);
+                showToast(data.message, 'error');
+            });
+
+            // ===== ACTIVITY UPDATES =====
+
+            // Online users and status updates
+            socket.on('user_status', (data) => {
+                console.log('User status update:', data);
+                // Refresh online users list
+                if (!document.getElementById('mainMenu').classList.contains('hidden')) {
+                    loadOnlineUsers();
+                }
+            });
+
+            socket.on('online_users_update', (data) => {
+                const onlineUsersDiv = document.getElementById('onlineUsers');
+                if (!onlineUsersDiv) return;
+
+                if (data.users.length === 0) {
+                    onlineUsersDiv.innerHTML = '<p style="color: var(--color-text-tertiary);">Momentan keine Benutzer online</p>';
+                } else {
+                    const userList = data.users.map(user =>
+                        `<span class="online-user-badge">
+                            <span class="online-status-dot"></span>
+                            ${user.name}
+                        </span>`
+                    ).join('');
+                    onlineUsersDiv.innerHTML = userList;
+                }
+            });
+
+            socket.on('online_count', (data) => {
+                // Update online count badge if exists
+                console.log('Online users:', data.count);
+            });
+
+            // Leaderboard updates
+            socket.on('leaderboard_update', (data) => {
+                const leaderboard = document.getElementById('globalLeaderboard');
+                if (!leaderboard) return;
+
+                if (data.leaderboard.length === 0) {
+                    leaderboard.innerHTML = '<p style="text-align: center; color: var(--color-text-secondary);">Noch keine Aktivitäten. Spiele mit und sammle Punkte!</p>';
+                    return;
+                }
+
+                leaderboard.innerHTML = '';
+                data.leaderboard.forEach((entry, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'leaderboard-entry';
+                    if (entry.name === currentUser) {
+                        div.classList.add('current-user');
+                    }
+
+                    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+
+                    div.innerHTML = `
+                        <span class="leaderboard-rank">${medal}</span>
+                        <span class="leaderboard-name">${entry.name}</span>
+                        <span class="leaderboard-score">${entry.score} Punkte</span>
+                    `;
+                    leaderboard.appendChild(div);
+                });
+            });
+
+            // Truth or Lie updates
+            socket.on('truthlie_new_entry', (data) => {
+                console.log('New truth/lie entry:', data);
+                if (!document.getElementById('truthLie').classList.contains('hidden')) {
+                    loadTruthLies();
+                }
+                showToast(`${data.user_name} hat neue Aussagen eingereicht!`, 'info');
+            });
+
+            socket.on('truthlie_update', (data) => {
+                console.log('Truth/lie vote update:', data);
+                if (!document.getElementById('truthLie').classList.contains('hidden')) {
+                    loadTruthLies();
+                }
+                if (data.is_correct) {
+                    showToast(`${data.user_name} hat richtig geraten!`, 'success');
+                }
+                // Refresh leaderboard
+                loadGlobalLeaderboard();
+            });
+
+            // Compliment updates
+            socket.on('new_compliment_sent', (data) => {
+                console.log('Compliment sent:', data);
+                showToast(`Kompliment an ${data.to_user} gesendet!`, 'success', '💝');
+            });
+
+            socket.on('new_compliment_received', (data) => {
+                console.log('Compliment received:', data);
+                showToast(`Neues Kompliment erhalten: "${data.text}"`, 'success', '💝');
+
+                // Refresh compliments if on that page
+                if (!document.getElementById('compliments').classList.contains('hidden')) {
+                    loadReceivedCompliments();
+                    loadComplimentStats();
+                } else {
+                    // Update badge
+                    lastReceivedComplimentsCount++;
+                    updateComplimentBadge(lastReceivedComplimentsCount);
+                }
+
+                // Refresh leaderboard
+                loadGlobalLeaderboard();
+            });
+
+            // Bingo updates
+            socket.on('bingo_update', (data) => {
+                console.log('Bingo update:', data);
+                showToast(`${data.user_name}: ${data.completed_count} Bingo-Felder abgeschlossen!`, 'info', '🎯');
+
+                // Refresh leaderboard
+                loadGlobalLeaderboard();
+            });
+
+            socket.on('bingo_complete', (data) => {
+                console.log('Bingo complete:', data);
+                showToast(`🎉 ${data.user_name} hat BINGO! 🎉`, 'success', 'BINGO!');
+            });
+
+            // Story updates
+            socket.on('story_update', (data) => {
+                console.log('Story update:', data);
+
+                // Update story if on that page
+                if (!document.getElementById('story').classList.contains('hidden')) {
+                    const storyDiv = document.getElementById('storyText');
+                    if (storyDiv) {
+                        storyDiv.innerHTML = data.full_story.join(' ');
+                    }
+                    loadStoryStats();
+                }
+
+                showToast(`${data.user_name} hat zur Geschichte beigetragen!`, 'info', '📖');
+
+                // Refresh leaderboard
+                loadGlobalLeaderboard();
+            });
+
+            // Confetti trigger (synchronized across all clients!)
+            socket.on('trigger_confetti', () => {
+                console.log('Triggering confetti!');
+                triggerConfetti();
+            });
+
+            // Pong response
+            socket.on('pong', () => {
+                console.log('Pong received');
+            });
+        }
+
+        function updateConnectionStatus(status) {
+            const statusEl = document.getElementById('connectionStatus');
+            const textEl = document.getElementById('connectionText');
+
+            if (!statusEl || !textEl) return;
+
+            statusEl.className = 'connection-status ' + status;
+
+            switch (status) {
+                case 'connected':
+                    textEl.textContent = 'Verbunden';
+                    break;
+                case 'connecting':
+                    textEl.textContent = 'Verbinde...';
+                    break;
+                case 'disconnected':
+                    textEl.textContent = 'Getrennt';
+                    break;
+                case 'error':
+                    textEl.textContent = 'Fehler';
+                    break;
+                default:
+                    textEl.textContent = status;
+            }
+        }
+
+        function requestUpdate(type) {
+            if (socket && socket.connected) {
+                socket.emit('request_update', { type: type });
+            }
         }
 
         // ===== SOUND SYSTEM =====
@@ -1412,6 +1704,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             loadCSRFToken();
             loadTheme();
+            initializeWebSocket();  // Initialize WebSocket connection
         });
 
         // ===== API CALL WITH LOADING STATE =====
@@ -1494,11 +1787,26 @@
                 currentUser = data.name;
                 document.getElementById('userName').textContent = name;
 
+                // Store user ID for WebSocket room management
+                // We'll need to get this from the session, so let's fetch it
+                const usersResponse = await apiCall('/api/users');
+                const user = usersResponse.find(u => u.name === name);
+                if (user) {
+                    currentUserId = user.id;
+                }
+
                 hideElement(document.getElementById('loginScreen'));
                 setTimeout(() => {
                     showElement(document.getElementById('mainMenu'));
-                    startOnlineUsersRefresh();
-                    startGlobalLeaderboardRefresh();
+
+                    // Request initial data via WebSocket
+                    requestUpdate('online_users');
+                    requestUpdate('leaderboard');
+
+                    // Also load via API as fallback
+                    loadOnlineUsers();
+                    loadGlobalLeaderboard();
+
                     showToast(`Willkommen, ${name}!`, 'success');
                 }, 150);
             } catch (error) {
@@ -1529,7 +1837,7 @@
 
             setTimeout(() => {
                 showElement(mainMenu);
-                stopAllActivityRefresh();
+                // Load data (WebSocket will handle real-time updates)
                 loadOnlineUsers();
                 loadGlobalLeaderboard();
             }, 150);
@@ -1538,32 +1846,25 @@
         function showActivity(activity) {
             hideElement(document.getElementById('mainMenu'));
 
-            // Stop all activity refreshes
-            stopAutoRefresh('truthLieInterval');
-            stopAutoRefresh('complimentsInterval');
-            stopAutoRefresh('bingoInterval');
-            stopAutoRefresh('storyInterval');
-
             setTimeout(() => {
                 showElement(document.getElementById(activity));
 
-                // Load and start the selected activity
+                // Load initial data for the selected activity
+                // WebSocket will handle real-time updates
                 if (activity === 'truthLie') {
-                    startAutoRefresh('truthLieInterval', loadTruthLies, 10000);
+                    loadTruthLies();
                     setupAutoSave('truth1');
                     setupAutoSave('truth2');
                     setupAutoSave('lie');
                 } else if (activity === 'compliments') {
-                    startAutoRefresh('complimentsInterval', () => {
-                        loadComplimentTarget();
-                        loadReceivedCompliments();
-                        loadComplimentStats();
-                    }, 10000);
+                    loadComplimentTarget();
+                    loadReceivedCompliments();
+                    loadComplimentStats();
                     setupAutoSave('complimentText');
                 } else if (activity === 'bingo') {
-                    startAutoRefresh('bingoInterval', loadBingo, 10000);
+                    loadBingo();
                 } else if (activity === 'story') {
-                    startAutoRefresh('storyInterval', loadStory, 10000);
+                    loadStory();
                     setupAutoSave('storySentence');
                 }
             }, 150);
@@ -2017,51 +2318,9 @@
             }
         }
 
-        // ===== AUTO-REFRESH SYSTEM =====
-        function startOnlineUsersRefresh() {
-            loadOnlineUsers();
-            if (onlineUsersInterval) {
-                clearInterval(onlineUsersInterval);
-            }
-            onlineUsersInterval = setInterval(loadOnlineUsers, 10000);
-        }
-
-        function startGlobalLeaderboardRefresh() {
-            loadGlobalLeaderboard();
-            if (globalLeaderboardInterval) {
-                clearInterval(globalLeaderboardInterval);
-            }
-            globalLeaderboardInterval = setInterval(loadGlobalLeaderboard, 10000);
-        }
-
-        function startAutoRefresh(intervalKey, callback, intervalMs = 10000) {
-            const currentInterval = window[intervalKey];
-            if (currentInterval) clearInterval(currentInterval);
-
-            callback();
-            window[intervalKey] = setInterval(callback, intervalMs);
-        }
-
-        function stopAutoRefresh(intervalKey) {
-            if (window[intervalKey]) {
-                clearInterval(window[intervalKey]);
-                window[intervalKey] = null;
-            }
-        }
-
-        function stopAllActivityRefresh() {
-            stopAutoRefresh('truthLieInterval');
-            stopAutoRefresh('complimentsInterval');
-            stopAutoRefresh('bingoInterval');
-            stopAutoRefresh('storyInterval');
-        }
-
-        // Periodically check for new compliments
-        setInterval(() => {
-            if (!document.getElementById('mainMenu').classList.contains('hidden')) {
-                loadReceivedCompliments();
-            }
-        }, 15000);
+        // ===== NO MORE POLLING! =====
+        // All updates now come via WebSocket events in real-time
+        // This dramatically reduces CPU usage and network traffic
     </script>
 </body>
 
