@@ -1238,8 +1238,12 @@
                 reconnectAttempts = 0;
                 updateConnectionStatus('connected');
 
-                // Request initial data
+                // If user is already logged in, authenticate the WebSocket connection
                 if (currentUserId) {
+                    console.log('🔐 Re-authenticating WebSocket connection for user ID:', currentUserId);
+                    socket.emit('authenticate_user');
+
+                    // Request initial data
                     requestUpdate('online_users');
                     requestUpdate('leaderboard');
                 }
@@ -1430,6 +1434,12 @@
             // Pong response
             socket.on('pong', () => {
                 console.log('Pong received');
+            });
+
+            // Authentication confirmation
+            socket.on('authenticated', (data) => {
+                console.log('✅ User authenticated:', data);
+                currentUserId = data.user_id;
             });
         }
 
@@ -1793,6 +1803,15 @@
                 const user = usersResponse.find(u => u.name === name);
                 if (user) {
                     currentUserId = user.id;
+                }
+
+                // IMPORTANT: Authenticate the WebSocket connection after HTTP login
+                // This joins the user to their personal room for receiving live updates
+                if (socket && socket.connected) {
+                    console.log('🔐 Authenticating WebSocket connection...');
+                    socket.emit('authenticate_user');
+                } else {
+                    console.warn('⚠️ WebSocket not connected, will authenticate on reconnect');
                 }
 
                 hideElement(document.getElementById('loginScreen'));
