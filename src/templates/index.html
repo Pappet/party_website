@@ -478,15 +478,11 @@
 
         /* ===== DARK MODE TOGGLE ===== */
         .theme-toggle {
-            position: fixed;
-            top: var(--space-md);
-            left: var(--space-md);
-            z-index: var(--z-fixed);
             background: var(--color-bg-primary);
             border: 2px solid var(--color-border);
             border-radius: var(--radius-full);
             width: 60px;
-            height: 32px;
+            height: 48px;
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -517,10 +513,6 @@
 
         /* ===== SOUND TOGGLE ===== */
         .sound-toggle {
-            position: fixed;
-            top: var(--space-md);
-            left: 90px;
-            z-index: var(--z-fixed);
             background: var(--color-bg-primary);
             border: 2px solid var(--color-border);
             border-radius: var(--radius-full);
@@ -537,11 +529,19 @@
 
         .sound-toggle:hover {
             box-shadow: var(--shadow-lg);
-            transform: scale(1.05);
         }
 
         .sound-toggle.muted {
             opacity: 0.5;
+        }
+
+        /* ===== SETTINGS CONTAINER (for Dark Mode & Sound buttons) ===== */
+        .settings-container {
+            display: flex;
+            gap: var(--space-sm);
+            justify-content: center;
+            align-items: center;
+            margin-top: var(--space-md);
         }
 
         /* ===== CONNECTION STATUS INDICATOR ===== */
@@ -889,16 +889,6 @@
                 padding: var(--space-md);
             }
 
-            .theme-toggle,
-            .sound-toggle {
-                top: var(--space-xs);
-                left: var(--space-xs);
-            }
-
-            .sound-toggle {
-                left: 70px;
-            }
-
             .connection-status {
                 left: var(--space-xs);
                 top: 70px;
@@ -966,16 +956,6 @@
 </head>
 
 <body>
-    <!-- Theme Toggle -->
-    <div class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode (Alt+D)">
-        <div class="theme-toggle-slider">🌙</div>
-    </div>
-
-    <!-- Sound Toggle -->
-    <div class="sound-toggle" onclick="toggleSound()" title="Toggle sound (Alt+S)">
-        <span id="soundIcon">🔊</span>
-    </div>
-
     <!-- Connection Status -->
     <div class="connection-status connecting" id="connectionStatus" title="WebSocket connection status">
         <div class="connection-status-dot"></div>
@@ -1046,6 +1026,21 @@
                 <p style="margin-bottom: 15px; color: var(--color-text-secondary);">Die aktivsten Party-Gäste basierend auf allen Aktivitäten!</p>
                 <div id="globalLeaderboard">
                     <p style="color: var(--color-text-tertiary);">Lädt...</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>⚙️ Einstellungen</h2>
+                <div class="settings-container">
+                    <!-- Theme Toggle -->
+                    <div class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode (Alt+D)">
+                        <div class="theme-toggle-slider">🌙</div>
+                    </div>
+
+                    <!-- Sound Toggle -->
+                    <div class="sound-toggle" onclick="toggleSound()" title="Toggle sound (Alt+S)">
+                        <span id="soundIcon">🔊</span>
+                    </div>
                 </div>
             </div>
         </div>
