@@ -448,6 +448,8 @@ def submit_truthlie():
 
     return api_response('success')
 
+# src/app.py
+
 @app.route('/api/truthlie/vote', methods=['POST'])
 @require_login
 def vote_truthlie():
@@ -458,9 +460,16 @@ def vote_truthlie():
     if not entry:
         return api_response('error', error='Entry not found', code=404)
 
-    # Normalize the guess (trim whitespace)
-    guess = data['guess'].strip()
+    guess_index = data['guess_index']
+    statements = json.loads(entry.statements)
+
+    if guess_index < 0 or guess_index >= len(statements):
+        return api_response('error', error='Invalid guess index', code=400)
+
+    guess_text = statements[guess_index].strip()
     lie = entry.lie.strip()
+
+    guess_to_store = str(guess_index)
 
     # Check if already voted correctly
     existing = Vote.query.filter_by(
@@ -472,11 +481,11 @@ def vote_truthlie():
         return api_response('error', error='Already guessed correctly', code=400)
 
     # Check if this guess is correct
-    is_correct = guess == lie
+    is_correct = guess_text == lie # Vergleiche den nachgeschlagenen Text
 
     if existing:
         # Update existing vote with new guess and increment attempts
-        existing.guess = guess
+        existing.guess = guess_to_store # Speichere den Index-String
         existing.attempts += 1
         existing.is_correct = is_correct
     else:
@@ -484,7 +493,7 @@ def vote_truthlie():
         existing = Vote(
             truth_lie_id=data['entry_id'],
             user_id=session['user_id'],
-            guess=guess,
+            guess=guess_to_store, # Speichere den Index-String
             attempts=1,
             is_correct=is_correct
         )
@@ -559,7 +568,7 @@ def submit_compliment():
 
     # Send WebSocket events
     from_user = db.session.get(User, session['user_id'])
-    to_user = User.query.get(data['to_user_id'])
+    to_user = db.session.get(User, data['to_user_id'])
 
     # Send confirmation to sender
     broadcast_update('new_compliment_sent', {
