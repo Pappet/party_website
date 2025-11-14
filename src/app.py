@@ -165,35 +165,10 @@ def require_login(f):
     return decorated_function
 
 # ===== WEBSOCKET EVENT HANDLERS =====
-
 @socketio.on('connect')
 def handle_connect():
     """Handle client connection"""
     print(f'Client connected: {request.sid}')
-
-    # Join user to their personal room if logged in
-    if 'user_id' in session:
-        user_room = f"user_{session['user_id']}"
-        join_room(user_room)
-
-        user = User.query.get(session['user_id'])
-        if user:
-            user.last_seen = datetime.utcnow()
-            db.session.commit()
-
-            # Broadcast user joined to all clients
-            broadcast_update('user_status', {
-                'user_id': user.id,
-                'user_name': user.name,
-                'status': 'online'
-            })
-
-            # Send online count to all clients
-            from datetime import timedelta
-            threshold = datetime.utcnow() - timedelta(minutes=5)
-            online_count = User.query.filter(User.last_seen >= threshold).count()
-            broadcast_update('online_count', {'count': online_count})
-
     emit('connected', {'sid': request.sid})
 
 @socketio.on('disconnect')
@@ -230,7 +205,7 @@ def handle_request_update(data):
 
     if update_type == 'online_users':
         from datetime import timedelta
-        threshold = datetime.utcnow() - timedelta(minutes=5)
+        threshold = datetime.now() - timedelta(minutes=5)
         online_users = User.query.filter(User.last_seen >= threshold).all()
         emit('online_users_update', {
             'users': [{'id': u.id, 'name': u.name} for u in online_users]
