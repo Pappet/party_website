@@ -157,9 +157,9 @@ def require_login(f):
         if 'user_id' not in session:
             return api_response('error', error='Not logged in', code=401)
         # Update last_seen timestamp
-        user = User.query.get(session['user_id'])
+        user = db.session.get(User, session['user_id'])
         if user:
-            user.last_seen = datetime.utcnow()
+            user.last_seen = datetime.now()
             db.session.commit()
         return f(*args, **kwargs)
     return decorated_function
@@ -185,7 +185,7 @@ def handle_disconnect():
         user_room = f"user_{session['user_id']}"
         leave_room(user_room)
 
-        user = User.query.get(session['user_id'])
+        user = db.session.get(User, session['user_id'])
         if user:
             # Broadcast user left
             broadcast_update('user_status', {
@@ -274,9 +274,9 @@ def handle_authenticate_user():
     user_room = f"user_{session['user_id']}"
     join_room(user_room)
 
-    user = User.query.get(session['user_id'])
+    user = db.session.get(User, session['user_id'])
     if user:
-        user.last_seen = datetime.utcnow()
+        user.last_seen = datetime.now()
         db.session.commit()
 
         print(f'User {user.name} (ID: {user.id}) authenticated and joined room {user_room}')
@@ -290,7 +290,7 @@ def handle_authenticate_user():
 
         # Send online count to all clients
         from datetime import timedelta
-        threshold = datetime.utcnow() - timedelta(minutes=5)
+        threshold = datetime.now() - timedelta(minutes=5)
         online_count = User.query.filter(User.last_seen >= threshold).count()
         broadcast_update('online_count', {'count': online_count})
 
@@ -323,7 +323,7 @@ def login():
         db.session.commit()
     else:
         # Update last_seen for existing users
-        user.last_seen = datetime.utcnow()
+        user.last_seen = datetime.now()
         db.session.commit()
 
     session['user_id'] = user.id
@@ -344,14 +344,14 @@ def get_session():
     if 'user_id' not in session:
         return api_response('error', error='No active session', code=401)
 
-    user = User.query.get(session['user_id'])
+    user = db.session.get(User, session['user_id'])
     if not user:
         # Session exists but user was deleted
         session.clear()
         return api_response('error', error='User not found', code=404)
 
     # Update last_seen timestamp
-    user.last_seen = datetime.utcnow()
+    user.last_seen = datetime.now()
     db.session.commit()
 
     return api_response('success', data={
@@ -368,7 +368,7 @@ def get_users():
 def get_online_users():
     from datetime import timedelta
     # Consider users online if they were active in the last 5 minutes
-    threshold = datetime.utcnow() - timedelta(minutes=5)
+    threshold = datetime.now() - timedelta(minutes=5)
     online_users = User.query.filter(User.last_seen >= threshold).all()
     return api_response('success', data=[{'id': u.id, 'name': u.name} for u in online_users])
 
@@ -440,7 +440,7 @@ def submit_truthlie():
     db.session.commit()
 
     # Broadcast new entry via WebSocket
-    user = User.query.get(session['user_id'])
+    user = db.session.get(User, session['user_id'])
     broadcast_update('truthlie_new_entry', {
         'user_name': user.name,
         'entry_id': entry.id
@@ -493,7 +493,7 @@ def vote_truthlie():
     db.session.commit()
 
     # Broadcast vote update via WebSocket
-    user = User.query.get(session['user_id'])
+    user = db.session.get(User, session['user_id'])
     broadcast_update('truthlie_update', {
         'entry_id': entry.id,
         'user_name': user.name,
@@ -558,7 +558,7 @@ def submit_compliment():
     db.session.commit()
 
     # Send WebSocket events
-    from_user = User.query.get(session['user_id'])
+    from_user = db.session.get(User, session['user_id'])
     to_user = User.query.get(data['to_user_id'])
 
     # Send confirmation to sender
@@ -635,7 +635,7 @@ def toggle_bingo():
     completed_indices = [c.item_index for c in completions]
 
     # Broadcast bingo update
-    user = User.query.get(session['user_id'])
+    user = db.session.get(User, session['user_id'])
     broadcast_update('bingo_update', {
         'user_name': user.name,
         'completed_count': len(completed_indices)
@@ -738,7 +738,7 @@ def add_to_story():
     db.session.commit()
 
     # Broadcast story update via WebSocket
-    user = User.query.get(session['user_id'])
+    user = db.session.get(User, session['user_id'])
     sentences = Story.query.order_by(Story.created_at).all()
 
     broadcast_update('story_update', {
